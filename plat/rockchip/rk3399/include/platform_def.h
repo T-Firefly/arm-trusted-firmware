@@ -73,7 +73,7 @@
 #define PLATFORM_NUM_AFFS		(PLATFORM_SYSTEM_COUNT +	\
 					 PLATFORM_CLUSTER_COUNT +	\
 					 PLATFORM_CORE_COUNT)
-
+#define PLATFORM_CLST_TO_CPUID_SHIFT	6
 #define PLAT_MAX_PWR_LVL		MPIDR_AFFLVL2
 
 /*
@@ -109,7 +109,7 @@
  ******************************************************************************/
 #define ADDR_SPACE_SIZE		(1ull << 32)
 #define MAX_XLAT_TABLES		20
-#define MAX_MMAP_REGIONS	16
+#define MAX_MMAP_REGIONS	20
 
 /*******************************************************************************
  * Declarations and constants to access the mailboxes safely. Each mailbox is
@@ -147,5 +147,7 @@
 #define PLAT_RK_PRIMARY_CPU		0x0
 
 #define RK_PLAT_AARCH_CFG		RK_PLAT_CFG1
+
+#define NEED_PMU_MACROS_S		1
 
 #endif /* __PLATFORM_DEF_H__ */

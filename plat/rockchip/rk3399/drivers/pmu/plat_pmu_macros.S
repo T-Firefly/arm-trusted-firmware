@@ -27,50 +27,40 @@
 #include <arch.h>
 #include <asm_macros.S>
 #include <platform_def.h>
-#include <pmu_sram.h>
 
-	.globl pmu_cpuson_entrypoint_start
-	.globl pmu_cpuson_entrypoint_end
+	.globl	clst_warmboot_data
 
-func pmu_cpuson_entrypoint
-pmu_cpuson_entrypoint_start:
-	ldr	x5, psram_data
-check_wake_cpus:
-	mrs	x0, MPIDR_EL1
-	and	x1, x0, #MPIDR_CPU_MASK
-	and	x0, x0, #MPIDR_CLUSTER_MASK
-	orr	x0, x0, x1
-	/* primary_cpu */
-	ldr	w1, [x5, #PSRAM_DT_MPIDR]
-	cmp	w0, w1
-	b.eq	sys_wakeup
+#define PLL_MODE_SHIFT	(0x8)
+#define PLL_NOMAL_MODE	((0x3 << (PLL_MODE_SHIFT + 16)) | \
+				 (0x1 << PLL_MODE_SHIFT))
+#define MPIDR_CLST_L_BITS 0x0
 	/*
-	 * If the core is not the primary cpu,
-	 * force the core into wfe.
+	 * For different socs, if we want to speed up warmboot,
+	 * we need to config some regs here.
+	 * If scu was suspend, we must resume related clk
+	 * from slow (24M) mode to normal mode first.
 	 */
-wfe_loop:
-	wfe
-	b	wfe_loop
-sys_wakeup:
-	/* check ddr flag for resume ddr */
-	ldr	w2, [x5, #PSRAM_DT_DDRFLAG]
-	cmp	w2, #0x0
-	b.eq	sys_resume
-ddr_resume:
-	ldr	x2, [x5, #PSRAM_DT_SP]
-	mov	sp, x2
-	ldr	x1, [x5, #PSRAM_DT_DDR_FUNC]
-	ldr	x0, [x5, #PSRAM_DT_DDR_DATA]
-	blr	x1
-sys_resume:
-	ldr	x1, sys_wakeup_entry
-	br	x1
+.macro	func_rockchip_clst_warmboot
+	adr	x4, clst_warmboot_data
+	lsr	x5, x20, #6
+	ldr	w3, [x4, x5]
+	str	wzr, [x4, x5]
+	cmp	w3, #PMU_CLST_RET
+	b.ne	clst_warmboot_end
+	ldr	w0, =(PLL_NOMAL_MODE)
+	/*
+	 * core_l offset is CRU_BASE + 0xc,
+	 * core_b offset is CRU_BASE + 0x2c
+	 */
+	ldr	x1, =(CRU_BASE + 0xc)
+	lsr	x2, x20, #3
+	str	w0, [x1, x2]
+clst_warmboot_end:
+.endm
 
-	.align	3
-psram_data:
-	.quad	PSRAM_DT_BASE
-sys_wakeup_entry:
-	.quad	psci_entrypoint
-pmu_cpuson_entrypoint_end:
+.macro rockchip_clst_warmboot_data
+clst_warmboot_data:
+	.rept	PLATFORM_CLUSTER_COUNT
 	.word	0
-endfunc pmu_cpuson_entrypoint
+	.endr
+.endm

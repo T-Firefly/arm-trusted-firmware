@@ -61,6 +61,24 @@
 #define PMUSRAM_SIZE		SIZE_K(64)
 #define PMUSRAM_RSIZE		SIZE_K(8)
 
+#define PMUGRF_BASE		0xff320000
+#define PMUGRF_SIZE		SIZE_K(64)
+
+#define GRF_BASE		0xff770000
+#define GRF_SIZE		SIZE_K(64)
+
+#define SERVICE_NOC_0_BASE	0xffa50000
+#define NOC_0_SIZE		SIZE_K(192)
+
+#define SERVICE_NOC_1_BASE	0xffa84000
+#define NOC_1_SIZE		SIZE_K(16)
+
+#define SERVICE_NOC_2_BASE	0xffa8c000
+#define NOC_2_SIZE		SIZE_K(16)
+
+#define SERVICE_NOC_3_BASE	0xffa90000
+#define NOC_3_SIZE		SIZE_K(448)
+
 /*
  * include i2c pmu/audio, pwm0-3 rkpwm0-3 uart_dbg,mailbox scr
  * 0xff650000 -0xff6c0000
@@ -103,6 +121,7 @@
  ******************************************************************************/
 #define PMU_CPU_HOTPLUG		0xdeadbeaf
 #define PMU_CPU_AUTO_PWRDN	0xabcdef12
+#define PMU_CLST_RET	0xa5
 
 /******************************************************************************
  * sgi, ppi

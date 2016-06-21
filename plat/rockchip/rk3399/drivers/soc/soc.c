@@ -55,6 +55,19 @@ const mmap_region_t plat_rk_mmap[] = {
 			MT_DEVICE | MT_RW | MT_SECURE),
 	MAP_REGION_FLAT(RK3399_UART2_BASE, RK3399_UART2_SIZE,
 			MT_DEVICE | MT_RW | MT_SECURE),
+	MAP_REGION_FLAT(PMUGRF_BASE, PMUGRF_SIZE,
+			MT_DEVICE | MT_RW | MT_SECURE),
+	MAP_REGION_FLAT(GRF_BASE, GRF_SIZE,
+			MT_DEVICE | MT_RW | MT_SECURE),
+	MAP_REGION_FLAT(SERVICE_NOC_0_BASE, NOC_0_SIZE,
+			MT_DEVICE | MT_RW | MT_SECURE),
+	MAP_REGION_FLAT(SERVICE_NOC_1_BASE, NOC_1_SIZE,
+			MT_DEVICE | MT_RW | MT_SECURE),
+	MAP_REGION_FLAT(SERVICE_NOC_2_BASE, NOC_2_SIZE,
+			MT_DEVICE | MT_RW | MT_SECURE),
+	MAP_REGION_FLAT(SERVICE_NOC_3_BASE, NOC_3_SIZE,
+			MT_DEVICE | MT_RW | MT_SECURE),
+
 	{ 0 }
 };
 
@@ -258,8 +271,7 @@ void plls_suspend(void)
 
 	for (i = 0; i < CRU_CLKSEL_COUNT; i++)
 		slp_data.cru_clksel_con[i] =
-			mmio_read_32(CRU_BASE +
-				     CRU_CLKSEL_OFFSET + i * REG_SIZE);
+			mmio_read_32(CRU_BASE + CRU_CLKSEL_CON(i));
 
 	for (i = 0; i < PMUCRU_CLKSEL_CONUT; i++)
 		slp_data.pmucru_clksel_con[i] =
@@ -273,6 +285,43 @@ void plls_suspend(void)
 	_pll_suspend(GPLL_ID);
 	_pll_suspend(ABPLL_ID);
 	_pll_suspend(ALPLL_ID);
+}
+
+void clk_gate_con_save(void)
+{
+	uint32_t i = 0;
+
+	for (i = 0; i < PMUCRU_GATE_COUNT; i++)
+		slp_data.pmucru_gate_con[i] =
+			mmio_read_32(PMUCRU_BASE + PMUCRU_GATE_CON(i));
+
+	for (i = 0; i < CRU_GATE_COUNT; i++)
+		slp_data.cru_gate_con[i] =
+			mmio_read_32(CRU_BASE + CRU_GATE_CON(i));
+}
+
+void clk_gate_con_disable(void)
+{
+	uint32_t i;
+
+	for (i = 0; i < PMUCRU_GATE_COUNT; i++)
+		mmio_write_32(PMUCRU_BASE + PMUCRU_GATE_CON(i), REG_SOC_WMSK);
+
+	for (i = 0; i < CRU_GATE_COUNT; i++)
+		mmio_write_32(CRU_BASE + CRU_GATE_CON(i), REG_SOC_WMSK);
+}
+
+void clk_gate_con_restore(void)
+{
+	uint32_t i;
+
+	for (i = 0; i < PMUCRU_GATE_COUNT; i++)
+		mmio_write_32(PMUCRU_BASE + PMUCRU_GATE_CON(i),
+			      REG_SOC_WMSK | slp_data.pmucru_gate_con[i]);
+
+	for (i = 0; i < CRU_GATE_COUNT; i++)
+		mmio_write_32(CRU_BASE + CRU_GATE_CON(i),
+			      REG_SOC_WMSK | slp_data.cru_gate_con[i]);
 }
 
 static void set_plls_nobypass(uint32_t pll_id)
@@ -290,7 +339,7 @@ static void plls_resume_prepare(void)
 	int i;
 
 	for (i = 0; i < CRU_CLKSEL_COUNT; i++)
-		mmio_write_32((CRU_BASE + CRU_CLKSEL_OFFSET + i * REG_SIZE),
+		mmio_write_32((CRU_BASE + CRU_CLKSEL_CON(i)),
 			      REG_SOC_WMSK | slp_data.cru_clksel_con[i]);
 	for (i = 0; i < PMUCRU_CLKSEL_CONUT; i++)
 		mmio_write_32((PMUCRU_BASE +
@@ -313,12 +362,13 @@ void soc_global_soft_reset_init(void)
 {
 	mmio_write_32(PMUCRU_BASE + CRU_PMU_RSTHOLD_CON(1),
 		      CRU_PMU_SGRF_RST_RLS);
+
+	mmio_clrbits_32(CRU_BASE + CRU_GLB_RST_CON,
+			CRU_PMU_WDTRST_MSK | CRU_PMU_FIRST_SFTRST_MSK);
 }
 
 void  __dead2 soc_global_soft_reset(void)
 {
-	uint32_t temp_val;
-
 	set_pll_slow_mode(VPLL_ID);
 	set_pll_slow_mode(NPLL_ID);
 	set_pll_slow_mode(GPLL_ID);
@@ -326,9 +376,9 @@ void  __dead2 soc_global_soft_reset(void)
 	set_pll_slow_mode(PPLL_ID);
 	set_pll_slow_mode(ABPLL_ID);
 	set_pll_slow_mode(ALPLL_ID);
-	temp_val = mmio_read_32(CRU_BASE + CRU_GLB_RST_CON) |
-		   PMU_RST_BY_FIRST_SFT;
-	mmio_write_32(CRU_BASE + CRU_GLB_RST_CON, temp_val);
+
+	dsb();
+
 	mmio_write_32(CRU_BASE + CRU_GLB_SRST_FST, GLB_SRST_FST_CFG_VAL);
 
 	/*
@@ -336,7 +386,7 @@ void  __dead2 soc_global_soft_reset(void)
 	 * so we do not hope the core to excute valid codes.
 	 */
 	while (1)
-	;
+		;
 }
 
 void plat_rockchip_soc_init(void)

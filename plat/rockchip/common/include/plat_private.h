@@ -35,20 +35,24 @@
 #include <mmio.h>
 #include <stdint.h>
 #include <xlat_tables.h>
+#include <psci.h>
 
 /******************************************************************************
  * For rockchip socs pm ops
  ******************************************************************************/
 struct rockchip_pm_ops_cb {
 	int (*cores_pwr_dm_on)(unsigned long mpidr, uint64_t entrypoint);
-	int (*cores_pwr_dm_off)(void);
-	int (*cores_pwr_dm_on_finish)(void);
+	int (*cores_pwr_dm_off)(uint32_t lvl, plat_local_state_t lvl_state);
+	int (*cores_pwr_dm_on_finish)(uint32_t lvl,
+				      plat_local_state_t lvl_state);
 	int (*cores_pwr_dm_suspend)(void);
 	int (*cores_pwr_dm_resume)(void);
+	int (*hlvl_pwr_dm_suspend)(uint32_t lvl, plat_local_state_t lvl_state);
+	int (*hlvl_pwr_dm_resume)(uint32_t lvl, plat_local_state_t lvl_state);
 	int (*sys_pwr_dm_suspend)(void);
 	int (*sys_pwr_dm_resume)(void);
-	void (*sys_gbl_soft_reset)(void) __dead2;
-	void (*system_off)(void) __dead2;
+	void (*sys_gbl_soft_reset)(void)__dead2;
+	void (*system_off)(void)__dead2;
 };
 
 /******************************************************************************
@@ -77,7 +81,7 @@ struct rockchip_pm_ops_cb {
 #endif
 
 #ifndef BITS_WITH_WMASK
-#define BITS_WITH_WMASK(msk, bits, shift)\
+#define BITS_WITH_WMASK(bits, msk, shift)\
 	(BITS_SHIFT(bits, shift) | BITS_SHIFT(msk, (shift + REG_MSK_SHIFT)))
 #endif
 
@@ -107,6 +111,8 @@ void plat_rockchip_pmusram_prepare(void);
 void plat_rockchip_pmu_init(void);
 void plat_rockchip_soc_init(void);
 void plat_setup_rockchip_pm_ops(struct rockchip_pm_ops_cb *ops);
+
+void platform_cpu_warmboot(void);
 
 extern const unsigned char rockchip_power_domain_tree_desc[];
 

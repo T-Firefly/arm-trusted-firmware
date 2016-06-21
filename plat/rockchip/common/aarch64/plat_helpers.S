@@ -35,6 +35,9 @@
 #include <cortex_a72.h>
 #include <plat_private.h>
 #include <platform_def.h>
+#if NEED_PMU_MACROS_S
+#include <plat_pmu_macros.S>
+#endif
 
 	.globl	cpuson_entry_point
 	.globl	cpuson_flags
@@ -132,7 +135,7 @@ func plat_my_core_pos
 	mrs	x0, mpidr_el1
 	and	x1, x0, #MPIDR_CPU_MASK
 	and	x0, x0, #MPIDR_CLUSTER_MASK
-	add	x0, x1, x0, LSR #6
+	add	x0, x1, x0, LSR #PLATFORM_CLST_TO_CPUID_SHIFT
 	ret
 endfunc plat_my_core_pos
 
@@ -189,29 +192,27 @@ endfunc plat_crash_console_putc
 	 * cpus online or resume enterpoint
 	 * --------------------------------------------------------------------
 	 */
+	.align	16
 func platform_cpu_warmboot
 	mrs	x0, MPIDR_EL1
-	and	x1, x0, #MPIDR_CPU_MASK
-	and	x0, x0, #MPIDR_CLUSTER_MASK
+	and	x19, x0, #MPIDR_CPU_MASK
+	and	x20, x0, #MPIDR_CLUSTER_MASK
+#if NEED_PMU_MACROS_S
+	func_rockchip_clst_warmboot
+#endif
 	/* --------------------------------------------------------------------
 	 * big cluster id is 1
 	 * big cores id is from 0-3, little cores id 4-7
 	 * --------------------------------------------------------------------
 	 */
-	add	x0, x1, x0, lsr #6
+	add	x21, x19, x20, lsr #PLATFORM_CLST_TO_CPUID_SHIFT
 	/* --------------------------------------------------------------------
 	 * get per cpuup flag
          * --------------------------------------------------------------------
 	 */
 	adr	x4, cpuson_flags
-	add	x4, x4, x0, lsl #2
+	add	x4, x4, x21, lsl #2
 	ldr	w1, [x4]
-	/* --------------------------------------------------------------------
-	 * get per cpuup boot addr
-         * --------------------------------------------------------------------
-	 */
-	adr	x5, cpuson_entry_point
-	ldr	x2, [x5, x0, lsl #3]
 	/* --------------------------------------------------------------------
 	 * check cpuon reason
          * --------------------------------------------------------------------
@@ -231,8 +232,15 @@ wfe_loop:
 	wfe
 	b	wfe_loop
 boot_entry:
-	mov	w0, #0
-	str	w0, [x4]
+	mov	w1, #0
+	str	w1, [x4]
+	/* --------------------------------------------------------------------
+	 * get per cpuup boot addr
+	 * --------------------------------------------------------------------
+	 */
+	adr	x5, cpuson_entry_point
+	ldr	x2, [x5, x21, lsl #3]
+
 	br	x2
 endfunc platform_cpu_warmboot
 
@@ -248,5 +256,8 @@ cpuson_entry_point:
 	.endr
 cpuson_flags:
 	.rept	PLATFORM_CORE_COUNT
-	.quad	0
+	.word	0
 	.endr
+#if NEED_PMU_MACROS_S
+rockchip_clst_warmboot_data
+#endif
