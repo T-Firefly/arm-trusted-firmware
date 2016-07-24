@@ -79,6 +79,32 @@
 #define SERVICE_NOC_3_BASE	0xffa90000
 #define NOC_3_SIZE		SIZE_K(448)
 
+/* Aggregate of all devices in the first GB */
+#define RK3399_DEV_RNG0_BASE	MMIO_BASE
+#define RK3399_DEV_RNG0_SIZE	0x1d00000
+#define CIC_BASE		0xFF620000
+#define CIC_SIZE		SIZE_K(4)
+
+#define DCF_BASE		0xFF6A0000
+#define DCF_SIZE		SIZE_K(4)
+
+#define SRAM_BASE		0xFF8C0000
+#define SRAM_SIZE		0x30000
+
+#define DDR_PI_OFFSET			0x800
+#define DDR_PHY_OFFSET			0x2000
+
+#define DDRC0_BASE			0xFFA80000
+#define DDRC0_SIZE			SIZE_K(32)
+
+#define DDRC1_BASE			0xFFA88000
+#define DDRC1_SIZE			SIZE_K(32)
+
+#define DDRC0_PI_BASE		(DDRC0_BASE + DDR_PI_OFFSET)
+#define DDRC0_PHY_BASE		(DDRC0_BASE + DDR_PHY_OFFSET)
+#define DDRC1_PI_BASE		(DDRC1_BASE + DDR_PI_OFFSET)
+#define DDRC1_PHY_BASE		(DDRC1_BASE + DDR_PHY_OFFSET)
+
 /*
  * include i2c pmu/audio, pwm0-3 rkpwm0-3 uart_dbg,mailbox scr
  * 0xff650000 -0xff6c0000
