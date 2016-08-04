@@ -102,7 +102,7 @@ func RK_HANDLER(1)
 
 A72:
 	/* Cortex-A72 specific settings */
-	mov	x0, #((2 << L2CTLR_DATA_RAM_LATENCY_SHIFT) |	\
+	mov	x0, #((4 << L2CTLR_DATA_RAM_LATENCY_SHIFT) |	\
 		     (0x1 << 5))
 	msr     L2CTLR_EL1, x0
 	isb
