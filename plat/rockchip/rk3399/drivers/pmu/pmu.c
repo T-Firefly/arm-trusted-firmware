@@ -43,7 +43,8 @@
 #include <soc.h>
 #include <pmu.h>
 #include <pmu_com.h>
-
+#include <dmc.h>
+#include <console.h>
 static struct psram_data_t *psram_sleep_cfg =
 	(struct psram_data_t *)PSRAM_DT_BASE;
 
@@ -489,7 +490,12 @@ static void pmu_scu_b_pwrup(void)
 {
 	mmio_clrbits_32(PMU_BASE + PMU_SFT_CON, BIT(ACINACTM_CLUSTER_B_CFG));
 }
-
+extern uint32_t __bl31_ssram_code, __bl31_sram_lma_start;
+extern uint32_t __bl31_esram_code;
+extern uint32_t __bl31_ssram_data, __bl31_sram_data_lma_start;
+extern uint32_t __bl31_esram_data;
+void  (*pmu_ddr_suspend)(void);
+void  (*pmu_ddr_resume)(void);
 void plat_rockchip_pmusram_prepare(void)
 {
 	uint32_t *sram_dst, *sram_src;
@@ -505,7 +511,29 @@ void plat_rockchip_pmusram_prepare(void)
 
 	u32_align_cpy(sram_dst, sram_src, sram_size);
 
+	sram_dst = (uint32_t *)(PMUSRAM_BASE + SIZE_K(1));
+	sram_src = (uint32_t *)&pmu_ddr_test_start;
+	sram_size = (uint32_t *)&pmu_ddr_test_end -
+		    (uint32_t *)sram_src;
+	u32_align_cpy(sram_dst, sram_src, sram_size);
+	pmu_ddr_suspend = (void(*) ())(PMUSRAM_BASE + 1024);
+	sram_dst = (uint32_t *)(PMUSRAM_BASE + 1280);
+	sram_src = (uint32_t *)&pmu_ddr_resume_satrt;
+	sram_size = (uint32_t *)&pmu_ddr_resume_end -
+		    (uint32_t *)sram_src;
+	u32_align_cpy(sram_dst, sram_src, sram_size);
+	pmu_ddr_resume = (void(*) ())(PMUSRAM_BASE + 1280);
+
 	psram_sleep_cfg->sp = PSRAM_DT_BASE;
+	sram_dst = &__bl31_ssram_code;
+	sram_src = &__bl31_sram_lma_start;
+	sram_size = (uint32_t *)&__bl31_esram_code - sram_dst;
+
+	u32_align_cpy(sram_dst, sram_src, sram_size);
+	sram_dst = &__bl31_ssram_data;
+	sram_src = &__bl31_sram_data_lma_start;
+	sram_size = (uint32_t *)&__bl31_esram_data - sram_dst;
+	u32_align_cpy(sram_dst, sram_src, sram_size);
 }
 
 static inline uint32_t get_cpus_pwr_domain_cfg_info(uint32_t cpu_id)
@@ -619,8 +647,6 @@ static inline int clst_pwr_domain_suspend(plat_local_state_t lvl_state)
 		pmu_st &= clst_st_msk;
 
 		if (pmu_st == clst_st_chk_msk) {
-			mmio_write_32(CRU_BASE + CRU_PLL_CON(pll_id, 3),
-				      PLL_SLOW_MODE);
 
 			clst_warmboot_data[pll_id] = PMU_CLST_RET;
 
@@ -784,11 +810,71 @@ static int hlvl_pwr_domain_resume(uint32_t lvl, plat_local_state_t lvl_state)
 	return 0;
 }
 
+extern void sgrf_init(void);
+
+uint32_t pwm2_iomux;
+static void pwm_regulator_suspend(void)
+{
+	pwm2_iomux = mmio_read_32(PMUGRF_BASE + PMUGRF_GPIO1C_IOMUX);
+	mmio_write_32(PMUGRF_BASE + PMUGRF_GPIO1C_IOMUX, 0x00c00000);
+}
+static void pwm_regulator_resume(void)
+{
+	mmio_write_32(PMUGRF_BASE + PMUGRF_GPIO1C_IOMUX,
+		      0x00c00000 | pwm2_iomux);
+}
+
+static void pvtm_32k_enable(void)
+{
+	/* not gating pvtm*/
+	mmio_write_32(PMUCRU_BASE + 0x0100, (0x10000 << 7));
+	/*reset pvtm*/
+	mmio_write_32(PMUCRU_BASE + 0x0114, (0x10001 << 11));
+	udelay(5);
+	mmio_write_32(PMUCRU_BASE + 0x0114, (0x10000 << 11));
+	/*init pvtm*/
+	mmio_write_32(PMUGRF_BASE + 0x0240, 0x00020002);
+	udelay(1);
+	mmio_write_32(PMUGRF_BASE + 0x0244, 0x00000200); /*0x0e244*/
+	udelay(1);
+	mmio_write_32(PMUGRF_BASE + 0x0240, 0xff090009);
+
+	INFO("---xxxx,,0x%x\n", mmio_read_32(PMUGRF_BASE + 0x0240));
+	/*suspend clock from internal, pvtm*/
+	mmio_write_32(PMUGRF_BASE + 0x0180, 0x00010001);
+}
+
+uint32_t center_pd_enable = 1;
+uint32_t pmu_debug_enable;
+uint32_t debug_iomux;
+uint32_t interrupt_debug = 1;
+uint32_t debug_ddr_suspend;
+uint32_t pll_suspend_enable;
+#define PVTM_ENABLE		0
+
 static void sys_slp_config(void)
 {
 	uint32_t slp_mode_cfg = 0;
 
+	INFO("the debug info:\n");
+	INFO("CENTER_PD: %d\n", center_pd_enable);
+	INFO("PMU DEBUG: %d\n", pmu_debug_enable);
+	INFO("interrupt DEBUG: %d\n", interrupt_debug);
+	INFO("PVTM_ENABLE: 0x%x\n", PVTM_ENABLE);
+	if (center_pd_enable) {
+		set_abpll();
+		pmu_ddr_suspend();
+	}
+	debug_iomux = mmio_read_32(PMUGRF_BASE);
+	if (pmu_debug_enable) {
+		mmio_write_32(PMUGRF_BASE, 0xfff0aaa0);
+		mmio_write_32(PMUGRF_BASE + 0x040, 0xfff00000);
+		INFO("PMUGRF - iomux: 0x%x\n", mmio_read_32(PMUGRF_BASE));
+	}
+
+	/*cci force wake up*/
 	mmio_write_32(GRF_BASE + 0x0e210, WMSK_BIT(8));
+
 	mmio_write_32(PMU_BASE + PMU_CCI500_CON,
 		      BIT_WITH_WMSK(PMU_CLR_PREQ_CCI500_HW) |
 		      BIT_WITH_WMSK(PMU_CLR_QREQ_CCI500_HW) |
@@ -810,8 +896,6 @@ static void sys_slp_config(void)
 		       BIT(PMU_SCU_PD_EN) |
 		       BIT(PMU_CCI_PD_EN) |
 		       BIT(PMU_CLK_CORE_SRC_GATE_EN) |
-		       BIT(PMU_PERILP_PD_EN) |
-		       BIT(PMU_CLK_PERILP_SRC_GATE_EN) |
 		       BIT(PMU_ALIVE_USE_LF) |
 		       BIT(PMU_SREF0_ENTER_EN) |
 		       BIT(PMU_SREF1_ENTER_EN) |
@@ -820,35 +904,46 @@ static void sys_slp_config(void)
 		       BIT(PMU_DDRIO0_RET_EN) |
 		       BIT(PMU_DDRIO1_RET_EN) |
 		       BIT(PMU_DDRIO_RET_HW_DE_REQ) |
+		       BIT(PMU_CENTER_PD_EN) |
 		       BIT(PMU_PLL_PD_EN) |
 		       BIT(PMU_CLK_CENTER_SRC_GATE_EN) |
 		       BIT(PMU_OSC_DIS) |
 		       BIT(PMU_PMU_USE_LF);
 
-	mmio_setbits_32(PMU_BASE + PMU_WKUP_CFG4, BIT(PMU_CLUSTER_L_WKUP_EN));
-	mmio_setbits_32(PMU_BASE + PMU_WKUP_CFG4, BIT(PMU_CLUSTER_B_WKUP_EN));
+	mmio_setbits_32(PMU_BASE + PMU_WKUP_CFG4, BIT(PMU_PWM_WKUP_EN));
 	mmio_setbits_32(PMU_BASE + PMU_WKUP_CFG4, BIT(PMU_GPIO_WKUP_EN));
 	mmio_write_32(PMU_BASE + PMU_PWRMODE_CON, slp_mode_cfg);
 
-	mmio_write_32(PMU_BASE + PMU_SCU_L_PWRDN_CNT, CYCL_32K_CNT_MS(5));
-	mmio_write_32(PMU_BASE + PMU_SCU_L_PWRUP_CNT, CYCL_32K_CNT_MS(5));
-	mmio_write_32(PMU_BASE + PMU_SCU_B_PWRDN_CNT, CYCL_32K_CNT_MS(5));
-	mmio_write_32(PMU_BASE + PMU_SCU_B_PWRUP_CNT, CYCL_32K_CNT_MS(5));
-	mmio_write_32(PMU_BASE + PMU_CENTER_PWRDN_CNT, CYCL_32K_CNT_MS(5));
-	mmio_write_32(PMU_BASE + PMU_CENTER_PWRUP_CNT, CYCL_32K_CNT_MS(5));
-	mmio_write_32(PMU_BASE + PMU_WAKEUP_RST_CLR_CNT, CYCL_32K_CNT_MS(5));
+	mmio_write_32(PMU_BASE + PMU_SCU_L_PWRDN_CNT, CYCL_32K_CNT_MS(1));
+	mmio_write_32(PMU_BASE + PMU_SCU_L_PWRUP_CNT, CYCL_32K_CNT_MS(1));
+	mmio_write_32(PMU_BASE + PMU_SCU_B_PWRDN_CNT, CYCL_32K_CNT_MS(1));
+	mmio_write_32(PMU_BASE + PMU_SCU_B_PWRUP_CNT, CYCL_32K_CNT_MS(1));
+	mmio_write_32(PMU_BASE + PMU_CENTER_PWRDN_CNT, CYCL_32K_CNT_MS(1));
+	mmio_write_32(PMU_BASE + PMU_CENTER_PWRUP_CNT, CYCL_32K_CNT_MS(1));
+	mmio_write_32(PMU_BASE + PMU_WAKEUP_RST_CLR_CNT, CYCL_32K_CNT_MS(1));
 	mmio_write_32(PMU_BASE + PMU_OSC_CNT, CYCL_32K_CNT_MS(5));
-	mmio_write_32(PMU_BASE + PMU_DDRIO_PWRON_CNT, CYCL_32K_CNT_MS(5));
-	mmio_write_32(PMU_BASE + PMU_PLLLOCK_CNT, CYCL_32K_CNT_MS(5));
-	mmio_write_32(PMU_BASE + PMU_PLLRST_CNT, CYCL_32K_CNT_MS(5));
-	mmio_write_32(PMU_BASE + PMU_STABLE_CNT, CYCL_32K_CNT_MS(5));
-	mmio_clrbits_32(PMU_BASE + PMU_SFT_CON, BIT(PMU_24M_EN_CFG));
+	mmio_write_32(PMU_BASE + PMU_DDRIO_PWRON_CNT, CYCL_32K_CNT_MS(2));
+	mmio_write_32(PMU_BASE + PMU_PLLLOCK_CNT, CYCL_32K_CNT_MS(1));
+	mmio_write_32(PMU_BASE + PMU_PLLRST_CNT, CYCL_32K_CNT_MS(1));
+	mmio_write_32(PMU_BASE + PMU_STABLE_CNT, CYCL_32K_CNT_MS(4));
 
 	mmio_write_32(PMU_BASE + PMU_PLL_CON, PLL_PD_HW);
+	mmio_write_32(PMUGRF_BASE + 0x120, 0x00030001);
+#if PVTM_ENABLE
+	pvtm_32k_enable();
+#else
+	if (0)
+		pvtm_32k_enable();
 	mmio_write_32(PMUGRF_BASE + PMUGRF_SOC_CON0, EXTERNAL_32K);
 	mmio_write_32(PMUGRF_BASE, IOMUX_CLK_32K); /*32k iomux*/
+#endif
 }
+static void sys_slp_unconfig(void)
+{
+	mmio_write_32(PMU_BASE + PMU_WKUP_CFG4, 0x00);
+	mmio_write_32(PMU_BASE + PMU_PWRMODE_CON, 0x00);
 
+}
 static void set_hw_idle(uint32_t hw_idle)
 {
 	mmio_setbits_32(PMU_BASE + PMU_BUS_CLR, hw_idle);
@@ -859,10 +954,17 @@ static void clr_hw_idle(uint32_t hw_idle)
 	mmio_clrbits_32(PMU_BASE + PMU_BUS_CLR, hw_idle);
 }
 
+uint32_t wakeup_count;
+int skip_suspend;
+
 static int sys_pwr_domain_suspend(void)
 {
 	uint32_t wait_cnt = 0;
 	uint32_t status = 0;
+	uint32_t wkup_status;
+
+	wkup_status = mmio_read_32(PMU_BASE + PMU_WAKEUP_STATUS);
+	mmio_write_32(PMU_BASE + PMU_WAKEUP_STATUS, wkup_status);
 
 	pmu_power_domains_suspend();
 	set_hw_idle(BIT(PMU_CLR_CENTER1) |
@@ -873,12 +975,10 @@ static int sys_pwr_domain_suspend(void)
 		    BIT(PMU_CLR_CCIM1) |
 		    BIT(PMU_CLR_CENTER) |
 		    BIT(PMU_CLR_PERILP) |
-		    BIT(PMU_CLR_PMU) |
-		    BIT(PMU_CLR_PERILPM0) |
-		    BIT(PMU_CLR_GIC));
-
+		    BIT(PMU_CLR_PMU));
+	if (center_pd_enable)
+		dmc_save();
 	sys_slp_config();
-	pmu_sgrf_rst_hld();
 
 	mmio_write_32(SGRF_BASE + SGRF_SOC_CON0_1(1),
 		      (PMUSRAM_BASE >> CPU_BOOT_ADDR_ALIGN) |
@@ -891,7 +991,8 @@ static int sys_pwr_domain_suspend(void)
 		      BIT_WITH_WMSK(PMU_PWRDWN_REQ_CORE_B_SW) |
 		      BIT_WITH_WMSK(PMU_PWRDWN_REQ_GIC2_CORE_B_SW));
 	dsb();
-	status = BIT(PMU_PWRDWN_REQ_CORE_B_2GIC_SW_ST) |
+	status =
+		BIT(PMU_PWRDWN_REQ_CORE_B_2GIC_SW_ST) |
 		BIT(PMU_PWRDWN_REQ_CORE_B_SW_ST) |
 		BIT(PMU_PWRDWN_REQ_GIC2_CORE_B_SW_ST);
 	while ((mmio_read_32(PMU_BASE +
@@ -905,7 +1006,67 @@ static int sys_pwr_domain_suspend(void)
 	}
 	mmio_setbits_32(PMU_BASE + PMU_PWRDN_CON, BIT(PMU_SCU_B_PWRDWN_EN));
 
+	INFO("the test count: %d\n", wakeup_count++);
+
+	pwm_regulator_suspend();
+	if (pll_suspend_enable) {
+		plls_suspend();
+		mmio_write_32(PMUCRU_BASE + 0x80, 0x001f0000);
+		INFO("PMU_PCLK_div_con[4:0] = 0x%x\n",
+		     mmio_read_32(PMUCRU_BASE + 0x80));
+		INFO("PPLL CON0 : 0x%x\n", mmio_read_32(PMUCRU_BASE));
+		INFO("PPLL CON1 : 0x%x\n", mmio_read_32(PMUCRU_BASE + 0x04));
+		INFO("PPLL CON2 : 0x%x\n", mmio_read_32(PMUCRU_BASE + 0x08));
+		INFO("PPLL CON3 : 0x%x\n", mmio_read_32(PMUCRU_BASE + 0x0c));
+		INFO("PPLL CON4 : 0x%x\n", mmio_read_32(PMUCRU_BASE + 0x10));
+		INFO("PMU_PCLK_div_con[4:0] = 0x%x\n",
+		     mmio_read_32(PMUCRU_BASE + 0x80));
+	}
+
+	if ((interrupt_debug == 0x01) &&
+	    mmio_read_32(PMU_BASE + PMU_WAKEUP_STATUS)) {
+		INFO("can't sleep , the wake up interupt\n");
+		skip_suspend = 1;
+	}
+	INFO("suspend end\n");
 	return 0;
+}
+
+static void report_wakeup_source(void)
+{
+	uint32_t wkup_status;
+
+	wkup_status =  mmio_read_32(PMU_BASE + PMU_WAKEUP_STATUS);
+	INFO("RK3399 The wake up information:\n");
+	INFO("wake up sattus: 0x%x\n",
+	     mmio_read_32(PMU_BASE + PMU_WAKEUP_STATUS));
+	if (wkup_status & BIT(0))
+		INFO("CLUSTER L interrupt wakeup\n");
+	if (wkup_status & BIT(1))
+		INFO("CLUSTER B interrupt wakeup\n");
+	if (wkup_status & BIT(2)) {
+		INFO("GPIO interrupt wakeup\n");
+		INFO("GPIO0: 0x%x\n", mmio_read_32(GPIO0_BASE + 0x040));
+		INFO("GPIO1: 0x%x\n", mmio_read_32(GPIO1_BASE + 0x040));
+	}
+	if (wkup_status & BIT(3))
+		INFO("SDIO interrupt wakeup\n");
+	if (wkup_status & BIT(4))
+		INFO("SDMMC interrupt wakeup\n");
+	if (wkup_status & BIT(6))
+		INFO("timer interrupt wakeup\n");
+	if (wkup_status & BIT(7))
+		INFO("USBDEV detect wakeup\n");
+	if (wkup_status & BIT(8))
+		INFO("M0 software interrupt wakeup\n");
+	if (wkup_status & BIT(9))
+		INFO("M0 wdt interrupt wakeup\n");
+	if (wkup_status & BIT(10))
+		INFO("timer out interrupt wakeup\n");
+	if (wkup_status & BIT(11))
+		INFO("PWM interrupt wakeup\n");
+	if (wkup_status & BIT(13))
+		INFO("pcie interrupt wakeup\n");
 }
 
 static int sys_pwr_domain_resume(void)
@@ -913,8 +1074,14 @@ static int sys_pwr_domain_resume(void)
 	uint32_t wait_cnt = 0;
 	uint32_t status = 0;
 
-	pmu_sgrf_rst_hld();
+	debug_ddr_suspend = 0;
+	pwm_regulator_resume();
 
+	console_init(PLAT_RK_UART_BASE, PLAT_RK_UART_CLOCK,
+		     PLAT_RK_UART_BAUDRATE);
+	sys_slp_unconfig();
+	report_wakeup_source();
+	console_uninit();
 	mmio_write_32(SGRF_BASE + SGRF_SOC_CON0_1(1),
 		      (cpu_warm_boot_addr >> CPU_BOOT_ADDR_ALIGN) |
 		      CPU_BOOT_ADDR_WMASK);
@@ -952,6 +1119,11 @@ static int sys_pwr_domain_resume(void)
 	pmu_scu_b_pwrup();
 
 	pmu_power_domains_resume();
+	if (center_pd_enable) {
+		restore_dpll();
+		pmu_ddr_resume();
+		restore_abpll();
+	}
 	clr_hw_idle(BIT(PMU_CLR_CENTER1) |
 				BIT(PMU_CLR_ALIVE) |
 				BIT(PMU_CLR_MSCH0) |
@@ -960,10 +1132,10 @@ static int sys_pwr_domain_resume(void)
 				BIT(PMU_CLR_CCIM1) |
 				BIT(PMU_CLR_CENTER) |
 				BIT(PMU_CLR_PERILP) |
-				BIT(PMU_CLR_PMU) |
-				BIT(PMU_CLR_GIC));
+				BIT(PMU_CLR_PMU));
 
 	plat_rockchip_gic_cpuif_enable();
+	sgrf_init();
 	return 0;
 }
 
@@ -996,9 +1168,12 @@ void plat_rockchip_pmu_init(void)
 	for (cpu = 0; cpu < PLATFORM_CLUSTER_COUNT; cpu++)
 		clst_warmboot_data[cpu] = 0;
 
-	psram_sleep_cfg->ddr_func = 0x00;
-	psram_sleep_cfg->ddr_data = 0x00;
-	psram_sleep_cfg->ddr_flag = 0x00;
+	psram_sleep_cfg->ddr_func = (uint64_t)dmc_restore;
+	psram_sleep_cfg->ddr_data = (uint64_t)&sdram_configs[0];
+	if (center_pd_enable)
+		psram_sleep_cfg->ddr_flag = 0x01;
+	else
+		psram_sleep_cfg->ddr_flag = 0x00;
 	psram_sleep_cfg->boot_mpidr = read_mpidr_el1() & 0xffff;
 
 	/* cpu boot from pmusram */

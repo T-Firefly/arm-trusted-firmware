@@ -76,7 +76,7 @@ uint64_t rockchip_plat_sip_handler(uint32_t smc_fid,
 				   uint64_t flags)
 {
 	switch (smc_fid) {
-	case RK_SIP_DDR_CFG64:
+	case RK_SIP_DDR_CFG32:
 		SMC_RET1(handle, ddr_smc_handler(x1, x2, x3));
 	default:
 		ERROR("%s: unhandled SMC (0x%x)\n", __func__, smc_fid);

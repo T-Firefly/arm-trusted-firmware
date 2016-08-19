@@ -108,8 +108,8 @@
  * Platform specific page table and MMU setup constants
  ******************************************************************************/
 #define ADDR_SPACE_SIZE		(1ull << 32)
-#define MAX_XLAT_TABLES		20
-#define MAX_MMAP_REGIONS	30
+#define MAX_XLAT_TABLES		40
+#define MAX_MMAP_REGIONS	40
 
 /*******************************************************************************
  * Declarations and constants to access the mailboxes safely. Each mailbox is

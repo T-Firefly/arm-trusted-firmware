@@ -37,6 +37,7 @@ ENTRY(bl31_entrypoint)
 
 MEMORY {
     RAM (rwx): ORIGIN = BL31_BASE, LENGTH = BL31_LIMIT - BL31_BASE
+    PMU_SRAM (rwx): ORIGIN = PSRAM_LDS_BASE, LENGTH = (100*1024)
 }
 
 
@@ -185,4 +186,34 @@ SECTIONS
 #endif
 
     ASSERT(. <= BL31_LIMIT, "BL31 image has exceeded its limit.")
+ /*
+ * for code and date in sram
+ */
+	. = ALIGN(4);
+
+	__bl31_sram_lma_start = .;
+	__bl31_sram_coderegion_start = PSRAM_LDS_BASE;
+	.text_sram_code __bl31_sram_coderegion_start : AT(__bl31_sram_lma_start) {
+		__bl31_ssram_code = .;
+		*(.sram.text)
+		*(.sram.rodata)
+		. = ALIGN(4);
+		__bl31_esram_code = .;
+	} >PMU_SRAM
+
+	. = ALIGN(4096);
+	__bl31_sram_dataregion_start = .;
+
+	__bl31_sram_data_lma_start = LOADADDR(.text_sram_code) + SIZEOF(.text_sram_code);
+
+	.data_sram . : AT(__bl31_sram_data_lma_start) {
+		. = ALIGN(4);
+		__bl31_ssram_data = .;
+		*(.sram.data)
+		. = ALIGN(4);
+		__bl31_esram_data = .;
+	} >PMU_SRAM
+
+	//. = ALIGN(4096);
+	//__bl31_sram_dataregion_end = .;
 }

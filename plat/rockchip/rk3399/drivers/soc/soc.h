@@ -194,6 +194,11 @@ struct deepsleep_data_s {
 #define CRU_PMU_RSTHOLD_CON(n)		(0x120 + n * 4)
 /* reset hold*/
 #define CRU_PMU_SGRF_RST_HOLD		BIT_WITH_WMSK(6)
+#define CRU_PMU_INTMEM_PMU_HOLD		BIT_WITH_WMSK(2)
+#define CRU_PMU_CRU_PMU_HOLD		BIT_WITH_WMSK(9)
+#define CRU_PMU_GPIO1_PMU_HOLD		BIT_WITH_WMSK(8)
+#define CRU_PMU_GPIO0_PMU_HOLD		BIT_WITH_WMSK(7)
+#define CRU_PMU_GRF_PMU_HOLD		BIT_WITH_WMSK(5)
 /* reset hold release*/
 #define CRU_PMU_SGRF_RST_RLS		WMSK_BIT(6)
 
@@ -261,6 +266,10 @@ struct deepsleep_data_s {
 #define CPU_BOOT_ADDR_WMASK	0xffff0000
 #define CPU_BOOT_ADDR_ALIGN	16
 
+#define PMUGRF_GPIO1B_IOMUX		0x0014
+#define PMUGRF_GPIO1C_IOMUX		0x0018
+#define GRF_GPIO4C_IOMUX		0xe028
+
 /*
  * When system reset in running state, we want the cpus to be reboot
  * from maskrom (system reboot),
@@ -278,8 +287,13 @@ static inline void pmu_sgrf_rst_hld_release(void)
 
 static inline void pmu_sgrf_rst_hld(void)
 {
+	mmio_write_32(PMUCRU_BASE + CRU_PMU_RSTHOLD_CON(0),
+		      CRU_PMU_INTMEM_PMU_HOLD);
 	mmio_write_32(PMUCRU_BASE + CRU_PMU_RSTHOLD_CON(1),
-		      CRU_PMU_SGRF_RST_HOLD);
+		      CRU_PMU_SGRF_RST_HOLD |
+		      CRU_PMU_GPIO0_PMU_HOLD |
+		      CRU_PMU_GPIO1_PMU_HOLD |
+		      CRU_PMU_GRF_PMU_HOLD);
 }
 
 /* funciton*/
@@ -289,4 +303,7 @@ void plls_suspend(void);
 void clk_gate_con_save(void);
 void clk_gate_con_disable(void);
 void clk_gate_con_restore(void);
+void set_abpll(void);
+void restore_abpll(void);
+void restore_dpll(void);
 #endif /* __SOC_H__ */

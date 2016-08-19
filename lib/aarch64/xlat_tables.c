@@ -161,8 +161,6 @@ static unsigned long mmap_desc(unsigned attr, unsigned long addr_pa,
 	mem_type = MT_TYPE(attr);
 	if (mem_type == MT_MEMORY) {
 		desc |= LOWER_ATTRS(ATTR_IWBWA_OWBWA_NTR_INDEX | ISH);
-		if (attr & MT_RW)
-			desc |= UPPER_ATTRS(XN);
 	} else if (mem_type == MT_NON_CACHEABLE) {
 		desc |= LOWER_ATTRS(ATTR_NON_CACHEABLE_INDEX | OSH);
 		if (attr & MT_RW)
@@ -371,7 +369,7 @@ void init_xlat_tables(void)
 		isb();							\
 									\
 		sctlr = read_sctlr_el##_el();				\
-		sctlr |= SCTLR_WXN_BIT | SCTLR_M_BIT;			\
+		sctlr |= SCTLR_M_BIT;			\
 									\
 		if (flags & DISABLE_DCACHE)				\
 			sctlr &= ~SCTLR_C_BIT;				\

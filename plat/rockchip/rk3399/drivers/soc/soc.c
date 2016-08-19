@@ -52,7 +52,7 @@ const mmap_region_t plat_rk_mmap[] = {
 	MAP_REGION_FLAT(PMU_BASE, PMU_SIZE,
 			MT_DEVICE | MT_RW | MT_NS),
 	MAP_REGION_FLAT(PMUSRAM_BASE, PMUSRAM_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
+			MT_MEMORY | MT_RW | MT_SECURE),
 	MAP_REGION_FLAT(RK3399_UART2_BASE, RK3399_UART2_SIZE,
 			MT_DEVICE | MT_RW | MT_SECURE),
 	MAP_REGION_FLAT(PMUGRF_BASE, PMUGRF_SIZE,
@@ -67,7 +67,10 @@ const mmap_region_t plat_rk_mmap[] = {
 			MT_DEVICE | MT_RW | MT_SECURE),
 	MAP_REGION_FLAT(SERVICE_NOC_3_BASE, NOC_3_SIZE,
 			MT_DEVICE | MT_RW | MT_SECURE),
-
+	MAP_REGION_FLAT(INTMEM_BASE, INTMEM_SIZE,
+			MT_MEMORY | MT_RW | MT_SECURE),
+	MAP_REGION_FLAT(CRU_BASE, CRU_SIZE,
+			MT_DEVICE | MT_RW | MT_SECURE),
 	MAP_REGION_FLAT(DDRC0_BASE, SIZE_K(64),
 			MT_DEVICE | MT_RW | MT_SECURE),
 	MAP_REGION_FLAT(DDRC1_BASE, DDRC1_SIZE,
@@ -81,6 +84,16 @@ const mmap_region_t plat_rk_mmap[] = {
 	MAP_REGION_FLAT(0xff8f0000, SIZE_K(64),
 			MT_DEVICE | MT_RW | MT_SECURE),
 	MAP_REGION_FLAT(0xff900000, SIZE_K(64),
+			MT_DEVICE | MT_RW | MT_SECURE),
+	MAP_REGION_FLAT(SERVICE_NOC_1_BASE, NOC_1_SIZE,
+			MT_DEVICE | MT_RW | MT_SECURE),
+	MAP_REGION_FLAT(SERVICE_NOC_2_BASE, NOC_2_SIZE,
+			MT_DEVICE | MT_RW | MT_SECURE),
+	MAP_REGION_FLAT(SERVICE_NOC_3_BASE, NOC_3_SIZE,
+			MT_DEVICE | MT_RW | MT_SECURE),
+	MAP_REGION_FLAT(GPIO0_BASE, GPIO0_SIZE,
+			MT_DEVICE | MT_RW | MT_SECURE),
+	MAP_REGION_FLAT(GPIO1_BASE, GPIO1_SIZE,
 			MT_DEVICE | MT_RW | MT_SECURE),
 	{ 0 }
 };
@@ -276,6 +289,66 @@ static void _pll_suspend(uint32_t pll_id)
 	set_pll_bypass(pll_id);
 }
 
+void set_abpll(void)
+{
+	uint32_t i;
+
+	for (i = 0; i < PLL_CON_COUNT; i++) {
+		slp_data.plls_con[ABPLL_ID][i] =
+			mmio_read_32(CRU_BASE + CRU_PLL_CON(ABPLL_ID, i));
+		slp_data.plls_con[DPLL_ID][i] =
+			mmio_read_32(CRU_BASE + CRU_PLL_CON(DPLL_ID, i));
+	}
+	set_pll_slow_mode(ABPLL_ID);
+	for (i = 0; i < PLL_CON_COUNT; i++) {
+		if (i != 2)
+			mmio_write_32(CRU_BASE + CRU_PLL_CON(ABPLL_ID, i),
+				      slp_data.plls_con[DPLL_ID][i] |
+				      0xffff0000);
+	}
+	mmio_write_32(CRU_BASE + CRU_PLL_CON(ABPLL_ID, 2),
+		      slp_data.plls_con[DPLL_ID][2]);
+	while ((mmio_read_32(CRU_BASE + CRU_PLL_CON(ABPLL_ID, 2)) &
+	      0x80000000) == 0x0)
+		;
+	set_pll_normal_mode(ABPLL_ID);
+}
+void restore_dpll(void)
+{
+	uint32_t i;
+
+	set_pll_slow_mode(DPLL_ID);
+	for (i = 0; i < PLL_CON_COUNT; i++) {
+		if (i != 2)
+			mmio_write_32(CRU_BASE + CRU_PLL_CON(DPLL_ID, i),
+				      slp_data.plls_con[DPLL_ID][i] |
+				      0xffff0000);
+	}
+	mmio_write_32(CRU_BASE + CRU_PLL_CON(DPLL_ID, 2),
+		      slp_data.plls_con[DPLL_ID][2]);
+	while ((mmio_read_32(CRU_BASE + CRU_PLL_CON(DPLL_ID, 2)) &
+	      0x80000000) == 0x0)
+		;
+	set_pll_normal_mode(DPLL_ID);
+}
+void restore_abpll(void)
+{
+	uint32_t i;
+
+	set_pll_slow_mode(ABPLL_ID);
+	for (i = 0; i < PLL_CON_COUNT; i++) {
+		if (i != 2)
+			mmio_write_32(CRU_BASE + CRU_PLL_CON(ABPLL_ID, i),
+				      slp_data.plls_con[ABPLL_ID][i] |
+				      0xffff0000);
+	}
+	mmio_write_32(CRU_BASE + CRU_PLL_CON(ABPLL_ID, 2),
+		      slp_data.plls_con[ABPLL_ID][2]);
+	while ((mmio_read_32(CRU_BASE + CRU_PLL_CON(ABPLL_ID, 2)) &
+	       0x80000000) == 0x0)
+		;
+	set_pll_normal_mode(ABPLL_ID);
+}
 void plls_suspend(void)
 {
 	uint32_t i, pll_id;
@@ -297,9 +370,9 @@ void plls_suspend(void)
 	_pll_suspend(VPLL_ID);
 	_pll_suspend(PPLL_ID);
 	_pll_suspend(GPLL_ID);
-	_pll_suspend(ABPLL_ID);
 	_pll_suspend(ALPLL_ID);
 }
+
 
 void clk_gate_con_save(void)
 {
@@ -366,9 +439,13 @@ void plls_resume(void)
 	int pll_id;
 
 	plls_resume_prepare();
+
+	set_pll_normal_mode(PPLL_ID);
 	for (pll_id = ALPLL_ID; pll_id < END_PLL_ID; pll_id++) {
-		set_plls_nobypass(pll_id);
-		set_pll_normal_mode(pll_id);
+		if (pll_id != ABPLL_ID) {
+			set_plls_nobypass(pll_id);
+			set_pll_normal_mode(pll_id);
+		}
 	}
 }
 

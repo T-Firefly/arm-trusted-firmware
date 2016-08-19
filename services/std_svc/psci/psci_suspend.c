@@ -128,6 +128,8 @@ static void psci_suspend_to_pwrdown_start(unsigned int end_pwrlvl,
  * the state transition has been done, no further error is expected and it is
  * not possible to undo any of the actions taken beyond that point.
  ******************************************************************************/
+extern int skip_suspend ;
+
 void psci_cpu_suspend_start(entry_point_info_t *ep,
 			    unsigned int end_pwrlvl,
 			    psci_power_state_t *state_info,
@@ -188,6 +190,13 @@ exit:
 				  idx);
 	if (skip_wfi)
 		return;
+
+	if (skip_suspend == 1) {
+		skip_suspend = 0;
+		disable_mmu_icache_el3();
+		psci_entrypoint();
+		return;
+	}
 
 	if (is_power_down_state)
 		psci_power_down_wfi();

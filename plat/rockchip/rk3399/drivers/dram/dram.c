@@ -2251,6 +2251,43 @@ static void dcf_start(uint32_t freq, uint32_t index)
 	enable_dcf(DCF_START_ADDR);
 }
 
+static void dram_set_wr_dq_eye_delay(void)
+{
+	uint32_t delay_val, i;
+	uint32_t j, k;
+
+	delay_val = 0x260;
+
+
+	for (i = 0; i < rk3399_dram_status.timing_config.ch_cnt; i++) {
+		for (k = 0; k < 2; k++) {
+			clrsetbits_32(&rk3399_ddr_publ[i]->denali_phy[896],
+			      (0x3 << 8) | 1, k << 8);
+
+			clrsetbits_32(&rk3399_ddr_publ[i]->denali_phy[8], 0x1 << 24,
+					0 << 24);
+			clrsetbits_32(&rk3399_ddr_publ[i]->denali_phy[136], 0x1 << 24,
+					0 << 24);
+			clrsetbits_32(&rk3399_ddr_publ[i]->denali_phy[264], 0x1 << 24,
+					0 << 24);
+			clrsetbits_32(&rk3399_ddr_publ[i]->denali_phy[392], 0x1 << 24,
+					0 << 24);
+			for (j = 0; j < 4; j++) {
+				clrsetbits_32(&rk3399_ddr_publ[i]->denali_phy[59 +  j * 128], 0x07ff07ff,
+						(delay_val << 16) | delay_val);
+				clrsetbits_32(&rk3399_ddr_publ[i]->denali_phy[60 +  j * 128], 0x07ff07ff,
+						(delay_val << 16) | delay_val);
+				clrsetbits_32(&rk3399_ddr_publ[i]->denali_phy[61 +  j * 128], 0x07ff07ff,
+						(delay_val << 16) | delay_val);
+				clrsetbits_32(&rk3399_ddr_publ[i]->denali_phy[62 +  j * 128], 0x07ff07ff,
+						(delay_val << 16) | delay_val);
+				clrsetbits_32(&rk3399_ddr_publ[i]->denali_phy[63 +  j * 128], 0x07ff,
+						delay_val);
+			}
+		}
+	}
+}
+
 static void dram_related_init(struct ddr_dts_config_timing *dts_timing)
 {
 	uint32_t trefi0, trefi1;
@@ -2305,6 +2342,8 @@ static void dram_related_init(struct ddr_dts_config_timing *dts_timing)
 		rk3399_dram_status.timing_config.odt = 1;
 	gen_rk3399_set_ds_odt(&rk3399_dram_status.timing_config,
 			&rk3399_dram_status.drv_odt_lp_cfg);
+
+	dram_set_wr_dq_eye_delay();
 }
 
 static uint32_t prepare_ddr_timing(uint32_t mhz)

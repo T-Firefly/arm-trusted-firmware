@@ -54,6 +54,10 @@
 #define SGRF_BASE		0xff330000
 #define SGRF_SIZE			SIZE_K(64)
 
+#define GPIO0_BASE			0xff720000
+#define GPIO0_SIZE			SIZE_K(64)
+#define GPIO1_BASE			0xff730000
+#define GPIO1_SIZE			SIZE_K(64)
 #define PMU_BASE			0xff310000
 #define PMU_SIZE			SIZE_K(64)
 
@@ -66,7 +70,14 @@
 
 #define GRF_BASE		0xff770000
 #define GRF_SIZE		SIZE_K(64)
+#define INTMEM_BASE		0xff8c0000
+#define INTMEM_SIZE			SIZE_K(192)
 
+#define PSRAM_DT_REQ_SIZE	SIZE_K(2)
+/*#define PSRAM_LDS_BASE		(PMUSRAM_BASE + PSRAM_DT_REQ_SIZE)*/
+#define PSRAM_LDS_BASE		(INTMEM_BASE + SIZE_K(100))
+#define RK_IMEM_DDRCODE_BASE (PMUSRAM_BASE + SIZE_K(4))
+#define RK_IMEM_DDRCODE_LENGTH SIZE_K(2)
 #define SERVICE_NOC_0_BASE	0xffa50000
 #define NOC_0_SIZE		SIZE_K(192)
 
@@ -79,6 +90,11 @@
 #define SERVICE_NOC_3_BASE	0xffa90000
 #define NOC_3_SIZE		SIZE_K(448)
 
+#define PMUGRF_BASE			0xff320000
+#define PMUGRF_SIZE			SIZE_K(64)
+
+#define GRF_BASE			0xff770000
+#define GRF_SIZE			SIZE_K(64)
 /* Aggregate of all devices in the first GB */
 #define RK3399_DEV_RNG0_BASE	MMIO_BASE
 #define RK3399_DEV_RNG0_SIZE	0x1d00000
@@ -114,6 +130,7 @@
 
 #define PMUCRU_BASE		0xff750000
 #define CRU_BASE			0xff760000
+#define CRU_SIZE			SIZE_K(64)
 
 #define COLD_BOOT_BASE		0xffff0000
 

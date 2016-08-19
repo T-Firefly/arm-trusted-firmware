@@ -36,6 +36,14 @@
 #include <stdint.h>
 #include <xlat_tables.h>
 #include <psci.h>
+/* Tag variables with this */
+#define __sramdata __attribute__((section(".sram.data")))
+/* Tag constants with this */
+#define __sramconst __attribute__((section(".sram.rodata")))
+/* Tag fun with this */
+#define __sramfunc __attribute__((section(".sram.text")))\
+		   __attribute__((noinline))
+#define sramlocalfunc __attribute__((section(".sram.text")))
 
 /******************************************************************************
  * For rockchip socs pm ops
@@ -118,6 +126,10 @@ extern const unsigned char rockchip_power_domain_tree_desc[];
 
 extern void *pmu_cpuson_entrypoint_start;
 extern void *pmu_cpuson_entrypoint_end;
+extern void *pmu_ddr_test_start;
+extern void *pmu_ddr_resume_satrt;
+extern void *pmu_ddr_resume_end;
+extern void *pmu_ddr_test_end;
 extern uint64_t cpuson_entry_point[PLATFORM_CORE_COUNT];
 extern uint32_t cpuson_flags[PLATFORM_CORE_COUNT];
 
