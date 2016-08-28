@@ -851,6 +851,9 @@ uint32_t interrupt_debug = 1;
 uint32_t debug_ddr_suspend;
 uint32_t pll_suspend_enable;
 #define PVTM_ENABLE		0
+#define CLK_DDRC_APLL_B_EN	0x00020000
+
+extern void ddr_switch_index_to_f0(void);
 
 static void sys_slp_config(void)
 {
@@ -862,6 +865,8 @@ static void sys_slp_config(void)
 	INFO("interrupt DEBUG: %d\n", interrupt_debug);
 	INFO("PVTM_ENABLE: 0x%x\n", PVTM_ENABLE);
 	if (center_pd_enable) {
+		mmio_write_32(CRU_BASE + 0x30c, CLK_DDRC_APLL_B_EN);
+		ddr_switch_index_to_f0();
 		set_abpll();
 		pmu_ddr_suspend();
 	}
