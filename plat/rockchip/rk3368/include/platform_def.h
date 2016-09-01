@@ -74,7 +74,7 @@
 					 PLATFORM_CLUSTER_COUNT +	\
 					 PLATFORM_CORE_COUNT)
 
-#define PLATFORM_CLST_TO_CPUID_SHIFT	6
+#define PLAT_RK_CLST_TO_CPUID_SHIFT	8
 
 #define PLAT_MAX_PWR_LVL		MPIDR_AFFLVL2
 
@@ -103,7 +103,7 @@
 /*
  * Put BL3-1 at the top of the Trusted RAM
  */
-#define BL31_BASE		(TZRAM_BASE + 0x8000)
+#define BL31_BASE		(TZRAM_BASE + 0x10000)
 #define BL31_LIMIT	(TZRAM_BASE + TZRAM_SIZE)
 
 /*******************************************************************************

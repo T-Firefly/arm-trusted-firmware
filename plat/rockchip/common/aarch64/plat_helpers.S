@@ -35,9 +35,7 @@
 #include <cortex_a72.h>
 #include <plat_private.h>
 #include <platform_def.h>
-#if NEED_PMU_MACROS_S
 #include <plat_pmu_macros.S>
-#endif
 
 	.globl	cpuson_entry_point
 	.globl	cpuson_flags
@@ -50,68 +48,6 @@
 	.globl	plat_my_core_pos
 	.globl	plat_reset_handler
 
-
-#define RK_REVISION(rev) RK_PLAT_CFG##rev
-#define RK_HANDLER(rev) plat_reset_handler_juno_r##rev
-#define JUMP_TO_HANDLER_IF_RK_R(revision)	\
-	jump_to_handler RK_REVISION(revision), RK_HANDLER(revision)
-
-	/*
-	 * Helper macro to jump to the given handler if the board revision
-	 * matches.
-	 * Expects the Juno board revision in x0.
-	 *
-	 */
-	.macro jump_to_handler _revision, _handler
-	cmp	x0, #\_revision
-	b.eq	\_handler
-	.endm
-
-	/*
-	 * Helper macro that reads the part number of the current CPU and jumps
-	 * to the given label if it matches the CPU MIDR provided.
-	 */
-	.macro  jump_if_cpu_midr _cpu_midr, _label
-	mrs	x0, midr_el1
-	ubfx	x0, x0, MIDR_PN_SHIFT, #12
-	cmp     w0, #((\_cpu_midr >> MIDR_PN_SHIFT) & MIDR_PN_MASK)
-	b.eq	\_label
-	.endm
-
-	/*
-	 * Platform reset handler for rockchip.
-	 * only A53 cores
-	 */
-func RK_HANDLER(0)
-	ret
-endfunc RK_HANDLER(0)
-
-	/*
-	 * Platform reset handler for rockchip.
-	 * - Cortex-A53 processor cluster;
-	 * - Cortex-A72 processor cluster.
-	 *
-	 * This handler does the following:
-	 * - Set the L2 Data RAM latency to 2 (i.e. 3 cycles) for Cortex-A72
-	 * - Set the L2 Tag RAM latency to 1 (i.e. 2 cycles) for Cortex-A72
-	 */
-func RK_HANDLER(1)
-	/*
-	 * Nothing to do on Cortex-A53.
-	 *
-	 */
-	jump_if_cpu_midr CORTEX_A72_MIDR, A72
-	ret
-
-A72:
-	/* Cortex-A72 specific settings */
-	mov	x0, #((4 << L2CTLR_DATA_RAM_LATENCY_SHIFT) |	\
-		     (0x1 << 5))
-	msr     L2CTLR_EL1, x0
-	isb
-	ret
-endfunc RK_HANDLER(1)
-
 	/*
 	 * void plat_reset_handler(void);
 	 *
@@ -120,22 +56,30 @@ endfunc RK_HANDLER(1)
 	 *
 	 */
 func plat_reset_handler
-
-	mov	x0, RK_PLAT_AARCH_CFG
-
-	JUMP_TO_HANDLER_IF_RK_R(0)
-	JUMP_TO_HANDLER_IF_RK_R(1)
-
-	/* SOC type is not supported */
-not_supported:
-	b	not_supported
+	mrs x0, midr_el1
+	ubfx x0, x0, MIDR_PN_SHIFT, #12
+	cmp w0, #((CORTEX_A72_MIDR >> MIDR_PN_SHIFT) & MIDR_PN_MASK)
+	b.eq	handler_a72
+	b	handler_end
+handler_a72:
+	/*
+	 * This handler does the following:
+	 * Set the L2 Data RAM latency for Cortex-A72.
+	 * Set the L2 Tag RAM latency to for Cortex-A72.
+	 */
+	mov x0, #((4 << L2CTLR_DATA_RAM_LATENCY_SHIFT) |	\
+			 (0x1 << 5))
+	msr 	L2CTLR_EL1, x0
+	isb
+handler_end:
+	ret
 endfunc plat_reset_handler
 
 func plat_my_core_pos
 	mrs	x0, mpidr_el1
 	and	x1, x0, #MPIDR_CPU_MASK
 	and	x0, x0, #MPIDR_CLUSTER_MASK
-	add	x0, x1, x0, LSR #PLATFORM_CLST_TO_CPUID_SHIFT
+	add	x0, x1, x0, LSR #PLAT_RK_CLST_TO_CPUID_SHIFT
 	ret
 endfunc plat_my_core_pos
 
@@ -197,15 +141,14 @@ func platform_cpu_warmboot
 	mrs	x0, MPIDR_EL1
 	and	x19, x0, #MPIDR_CPU_MASK
 	and	x20, x0, #MPIDR_CLUSTER_MASK
-#if NEED_PMU_MACROS_S
+	mov	x0, x20
 	func_rockchip_clst_warmboot
-#endif
 	/* --------------------------------------------------------------------
 	 * big cluster id is 1
 	 * big cores id is from 0-3, little cores id 4-7
 	 * --------------------------------------------------------------------
 	 */
-	add	x21, x19, x20, lsr #PLATFORM_CLST_TO_CPUID_SHIFT
+	add	x21, x19, x20, lsr #PLAT_RK_CLST_TO_CPUID_SHIFT
 	/* --------------------------------------------------------------------
 	 * get per cpuup flag
          * --------------------------------------------------------------------
@@ -217,11 +160,9 @@ func platform_cpu_warmboot
 	 * check cpuon reason
          * --------------------------------------------------------------------
 	 */
-	ldr	w3, =PMU_CPU_AUTO_PWRDN
-	cmp	w1, w3
+	cmp	w1, PMU_CPU_AUTO_PWRDN
 	b.eq	boot_entry
-	ldr	w3, =PMU_CPU_HOTPLUG
-	cmp	w1, w3
+	cmp	w1, PMU_CPU_HOTPLUG
 	b.eq	boot_entry
 	/* --------------------------------------------------------------------
 	 * If the boot core cpuson_flags or cpuson_entry_point is not
@@ -232,15 +173,13 @@ wfe_loop:
 	wfe
 	b	wfe_loop
 boot_entry:
-	mov	w1, #0
-	str	w1, [x4]
+	str	wzr, [x4]
 	/* --------------------------------------------------------------------
 	 * get per cpuup boot addr
 	 * --------------------------------------------------------------------
 	 */
 	adr	x5, cpuson_entry_point
 	ldr	x2, [x5, x21, lsl #3]
-
 	br	x2
 endfunc platform_cpu_warmboot
 
@@ -258,6 +197,4 @@ cpuson_flags:
 	.rept	PLATFORM_CORE_COUNT
 	.word	0
 	.endr
-#if NEED_PMU_MACROS_S
 rockchip_clst_warmboot_data
-#endif

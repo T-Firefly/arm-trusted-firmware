@@ -45,6 +45,8 @@
 #include <pmu_com.h>
 #include <dmc.h>
 #include <console.h>
+DEFINE_BAKERY_LOCK(rockchip_pd_lock);
+
 static struct psram_data_t *psram_sleep_cfg =
 	(struct psram_data_t *)PSRAM_DT_BASE;
 
@@ -538,11 +540,13 @@ void plat_rockchip_pmusram_prepare(void)
 
 static inline uint32_t get_cpus_pwr_domain_cfg_info(uint32_t cpu_id)
 {
+	assert(cpu_id < PLATFORM_CORE_COUNT);
 	return core_pm_cfg_info[cpu_id];
 }
 
 static inline void set_cpus_pwr_domain_cfg_info(uint32_t cpu_id, uint32_t value)
 {
+	assert(cpu_id < PLATFORM_CORE_COUNT);
 	core_pm_cfg_info[cpu_id] = value;
 #if !USE_COHERENT_MEM
 	flush_dcache_range((uintptr_t)&core_pm_cfg_info[cpu_id],
@@ -622,15 +626,14 @@ static int cpus_power_domain_off(uint32_t cpu_id, uint32_t pd_cfg)
 	return 0;
 }
 
-static inline int clst_pwr_domain_suspend(plat_local_state_t lvl_state)
+static inline void clst_pwr_domain_suspend(plat_local_state_t lvl_state)
 {
 	uint32_t cpu_id = plat_my_core_pos();
 	uint32_t pll_id, clst_st_msk, clst_st_chk_msk, pmu_st;
 
 	assert(cpu_id < PLATFORM_CORE_COUNT);
 
-	if (lvl_state == PLAT_MAX_RET_STATE  ||
-	    lvl_state == PLAT_MAX_OFF_STATE) {
+	if (lvl_state == PLAT_MAX_OFF_STATE) {
 		if (cpu_id < PLATFORM_CLUSTER0_CORE_COUNT) {
 			pll_id = ALPLL_ID;
 			clst_st_msk = CLST_L_CPUS_MSK;
@@ -647,13 +650,15 @@ static inline int clst_pwr_domain_suspend(plat_local_state_t lvl_state)
 		pmu_st &= clst_st_msk;
 
 		if (pmu_st == clst_st_chk_msk) {
+			mmio_write_32(CRU_BASE + CRU_PLL_CON(pll_id, 3),
+				      PLL_SLOW_MODE);
 
 			clst_warmboot_data[pll_id] = PMU_CLST_RET;
 
 			pmu_st = mmio_read_32(PMU_BASE + PMU_PWRDN_ST);
 			pmu_st &= clst_st_msk;
 			if (pmu_st == clst_st_chk_msk)
-				return 0;
+				return;
 			/*
 			 * it is mean that others cpu is up again,
 			 * we must resume the cfg at once.
@@ -663,8 +668,6 @@ static inline int clst_pwr_domain_suspend(plat_local_state_t lvl_state)
 			clst_warmboot_data[pll_id] = 0;
 		}
 	}
-
-	return -1;
 }
 
 static int clst_pwr_domain_resume(plat_local_state_t lvl_state)
@@ -674,8 +677,7 @@ static int clst_pwr_domain_resume(plat_local_state_t lvl_state)
 
 	assert(cpu_id < PLATFORM_CORE_COUNT);
 
-	if (lvl_state == PLAT_MAX_RET_STATE ||
-	    lvl_state == PLAT_MAX_OFF_STATE) {
+	if (lvl_state == PLAT_MAX_OFF_STATE) {
 		if (cpu_id < PLATFORM_CLUSTER0_CORE_COUNT)
 			pll_id = ALPLL_ID;
 		else
@@ -712,6 +714,7 @@ static int cores_pwr_domain_on(unsigned long mpidr, uint64_t entrypoint)
 {
 	uint32_t cpu_id = plat_core_pos_by_mpidr(mpidr);
 
+	assert(cpu_id < PLATFORM_CORE_COUNT);
 	assert(cpuson_flags[cpu_id] == 0);
 	cpuson_flags[cpu_id] = PMU_CPU_HOTPLUG;
 	cpuson_entry_point[cpu_id] = entrypoint;
@@ -722,14 +725,18 @@ static int cores_pwr_domain_on(unsigned long mpidr, uint64_t entrypoint)
 	return 0;
 }
 
-static int cores_pwr_domain_off(uint32_t lvl, plat_local_state_t lvl_state)
+static int cores_pwr_domain_off(void)
 {
 	uint32_t cpu_id = plat_my_core_pos();
 
+	cpus_power_domain_off(cpu_id, core_pwr_wfi);
+
+	return 0;
+}
+
+static int hlvl_pwr_domain_off(uint32_t lvl, plat_local_state_t lvl_state)
+{
 	switch (lvl) {
-	case MPIDR_AFFLVL0:
-		cpus_power_domain_off(cpu_id, core_pwr_wfi);
-		break;
 	case MPIDR_AFFLVL1:
 		clst_pwr_domain_suspend(lvl_state);
 		break;
@@ -744,9 +751,10 @@ static int cores_pwr_domain_suspend(void)
 {
 	uint32_t cpu_id = plat_my_core_pos();
 
+	assert(cpu_id < PLATFORM_CORE_COUNT);
 	assert(cpuson_flags[cpu_id] == 0);
 	cpuson_flags[cpu_id] = PMU_CPU_AUTO_PWRDN;
-	cpuson_entry_point[cpu_id] = (uintptr_t)psci_entrypoint;
+	cpuson_entry_point[cpu_id] = (uintptr_t)plat_get_sec_entrypoint();
 	dsb();
 
 	cpus_power_domain_off(cpu_id, core_pwr_wfi_int);
@@ -767,17 +775,19 @@ static int hlvl_pwr_domain_suspend(uint32_t lvl, plat_local_state_t lvl_state)
 	return 0;
 }
 
-static int cores_pwr_domain_on_finish(uint32_t lvl,
-				      plat_local_state_t lvl_state)
+static int cores_pwr_domain_on_finish(void)
 {
 	uint32_t cpu_id = plat_my_core_pos();
 
+	mmio_write_32(PMU_BASE + PMU_CORE_PM_CON(cpu_id),
+		      CORES_PM_DISABLE);
+	return 0;
+}
+
+static int hlvl_pwr_domain_on_finish(uint32_t lvl,
+				     plat_local_state_t lvl_state)
+{
 	switch (lvl) {
-	case MPIDR_AFFLVL0:
-		/* Disable core_pm */
-		mmio_write_32(PMU_BASE + PMU_CORE_PM_CON(cpu_id),
-			      CORES_PM_DISABLE);
-		break;
 	case MPIDR_AFFLVL1:
 		clst_pwr_domain_resume(lvl_state);
 		break;
@@ -1152,6 +1162,8 @@ static struct rockchip_pm_ops_cb pm_ops = {
 	.cores_pwr_dm_resume = cores_pwr_domain_resume,
 	.hlvl_pwr_dm_suspend = hlvl_pwr_domain_suspend,
 	.hlvl_pwr_dm_resume = hlvl_pwr_domain_resume,
+	.hlvl_pwr_dm_off = hlvl_pwr_domain_off,
+	.hlvl_pwr_dm_on_finish = hlvl_pwr_domain_on_finish,
 	.sys_pwr_dm_suspend = sys_pwr_domain_suspend,
 	.sys_pwr_dm_resume = sys_pwr_domain_resume,
 	.sys_gbl_soft_reset = soc_global_soft_reset,
@@ -1181,7 +1193,7 @@ void plat_rockchip_pmu_init(void)
 		psram_sleep_cfg->ddr_flag = 0x00;
 	psram_sleep_cfg->boot_mpidr = read_mpidr_el1() & 0xffff;
 
-	/* cpu boot from pmusram */
+	/* config cpu's warm boot address */
 	mmio_write_32(SGRF_BASE + SGRF_SOC_CON0_1(1),
 		      (cpu_warm_boot_addr >> CPU_BOOT_ADDR_ALIGN) |
 		      CPU_BOOT_ADDR_WMASK);

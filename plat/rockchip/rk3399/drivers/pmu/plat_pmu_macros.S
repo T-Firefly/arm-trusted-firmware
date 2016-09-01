@@ -31,30 +31,31 @@
 	.globl	clst_warmboot_data
 
 #define PLL_MODE_SHIFT	(0x8)
-#define PLL_NOMAL_MODE	((0x3 << (PLL_MODE_SHIFT + 16)) | \
-				 (0x1 << PLL_MODE_SHIFT))
+#define PLL_NORMAL_MODE	((0x3 << (PLL_MODE_SHIFT + 16)) | \
+						 (0x1 << PLL_MODE_SHIFT))
 #define MPIDR_CLST_L_BITS 0x0
 	/*
 	 * For different socs, if we want to speed up warmboot,
 	 * we need to config some regs here.
 	 * If scu was suspend, we must resume related clk
 	 * from slow (24M) mode to normal mode first.
+	 * X0: MPIDR_EL1 & MPIDR_CLUSTER_MASK
 	 */
 .macro	func_rockchip_clst_warmboot
 	adr	x4, clst_warmboot_data
-	lsr	x5, x20, #6
+	lsr	x5, x0, #6
 	ldr	w3, [x4, x5]
 	str	wzr, [x4, x5]
 	cmp	w3, #PMU_CLST_RET
 	b.ne	clst_warmboot_end
-	ldr	w0, =(PLL_NOMAL_MODE)
+	ldr	w6, =(PLL_NORMAL_MODE)
 	/*
 	 * core_l offset is CRU_BASE + 0xc,
 	 * core_b offset is CRU_BASE + 0x2c
 	 */
-	ldr	x1, =(CRU_BASE + 0xc)
-	lsr	x2, x20, #3
-	str	w0, [x1, x2]
+	ldr	x7, =(CRU_BASE + 0xc)
+	lsr	x2, x0, #3
+	str	w6, [x7, x2]
 clst_warmboot_end:
 .endm
 
