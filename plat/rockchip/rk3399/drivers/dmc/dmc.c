@@ -563,9 +563,8 @@ __sramdata struct rk3399_pmu_regs *pmu_regs = (void *)PMU_BASE_ADDR;
 
 __sramfunc void rkclk_configure_ddr(void/*unsigned int hz*/)
 {
-	u32 refdiv,postdiv1,fbdiv;  //FREF越大，VCO越大，jitter就会小
+	u32 refdiv,postdiv1, postdiv2, fbdiv;
 	int delay = 1000;
-	//u32 freq_mhz;
 
 	#if 0
 	freq_mhz = hz / MHz;
@@ -586,6 +585,7 @@ __sramfunc void rkclk_configure_ddr(void/*unsigned int hz*/)
 
 	fbdiv = FBDIV_DEC(cru_con);
 	postdiv1 = POSTDIV1_DEC(cru_con);
+	postdiv2 = POSTDIV2_DEC(cru_con);
 	refdiv = REFDIV_DEC(cru_con);
 	
 	writel_relaxed(PLL_MODE(PLL_SLOW_MODE),
@@ -593,7 +593,7 @@ __sramfunc void rkclk_configure_ddr(void/*unsigned int hz*/)
 	
 	writel_relaxed(FBDIV(fbdiv), &rk3399_cru_reg->cru_pll_con[DPLL][0]);
 	
-	writel_relaxed(POSTDIV2(1) | POSTDIV1(postdiv1) | REFDIV(refdiv),
+	writel_relaxed(POSTDIV2(postdiv2) | POSTDIV1(postdiv1) | REFDIV(refdiv),
 					&rk3399_cru_reg->cru_pll_con[DPLL][1]);
 	
 	while(delay > 0) {
@@ -1661,8 +1661,8 @@ void dmc_save(void)
 	cru_con |= POSTDIV2_ENC(postdiv2);
 	cru_con |= POSTDIV1_ENC(postdiv1);
 	cru_con |= REFDIV_ENC(refdiv);
-	sdram_params->ddr_freq= ((fbdiv*24)/(refdiv * postdiv1))*MHz;
-	//sdram_params->ddr_freq= 200*MHz;	
+	sdram_params->ddr_freq= ((fbdiv*24)/(refdiv * postdiv1 * postdiv2))*MHz;
+	/* sdram_params->ddr_freq = 200*MHz;	*/
 	INFO("sdram_params->ddr_freq = %d\n", sdram_params->ddr_freq);
 	sdram_params->dramtype = SYS_REG_DEC_DDRTYPE(sys_reg);
 	sdram_params->num_channels = SYS_REG_DEC_NUM_CH(sys_reg);
@@ -1700,6 +1700,8 @@ void dmc_save(void)
 	/*set DENALI_PHY_957_DATA.PHY_DLL_RST_EN=0x1*/
 	sdram_params->phy_regs.denali_phy[phy_regs_map_save[PHY_REGS_GROUP_SAVE-1][1] + 61] =
 		(sdram_params->phy_regs.denali_phy[phy_regs_map_save[PHY_REGS_GROUP_SAVE-1][1] + 61] & ~(0x3 << 24)) | (1 << 24);
+
+	sdram_params->phy_regs.denali_phy[phy_regs_map_save[PHY_REGS_GROUP_SAVE-1][1] + 0] |= 1;
 	#endif
 }
 
@@ -1728,7 +1730,8 @@ __sramfunc void dmc_restore(void)
 			rk3399_ddr_publ[channel];
 		uart_wrtie_byte('b');
 
-		phy_pctrl_reset(ddr_publ_regs, channel);		
+		phy_pctrl_reset(ddr_publ_regs, channel);
+
 		phy_dll_bypass_set(channel, ddr_publ_regs,
 				   sdram_params->ddr_freq);
 		uart_wrtie_byte('c');

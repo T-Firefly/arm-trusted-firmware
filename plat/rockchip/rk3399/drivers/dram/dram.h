@@ -313,6 +313,6 @@ uint64_t ddr_round_rate(uint64_t hz);
 uint64_t ddr_get_rate(void);
 void clr_dcf_irq(void);
 uint64_t dts_timing_receive(uint64_t timing, uint64_t index);
-void switch_index_to_f0(void);
+void ddr_switch_index_to_f0(void);
 
 #endif

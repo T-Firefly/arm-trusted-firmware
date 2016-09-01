@@ -84,6 +84,7 @@ static struct rk3399_ddr_publ_regs *const rk3399_ddr_publ[2] = {
 struct rk3399_dram_status {
 	uint32_t current_index;
 	uint32_t index_freq[2];
+	uint32_t exit_suspend;
 	struct timing_related_config timing_config;
 	struct drv_odt_lp_config drv_odt_lp_cfg;
 };
@@ -2314,6 +2315,7 @@ static void dram_related_init(struct ddr_dts_config_timing *dts_timing)
 	rk3399_dram_status.current_index =
 	    (read_32((uintptr_t) &rk3399_ddr_pctl[0]->denali_ctl[111])
 	     >> 16) & 0x3;
+	rk3399_dram_status.exit_suspend = 0;
 	if (rk3399_dram_status.timing_config.dram_type == DDR3) {
 		rk3399_dram_status.index_freq[0] /= 2;
 		rk3399_dram_status.index_freq[1] /= 2;
@@ -2346,11 +2348,32 @@ static void dram_related_init(struct ddr_dts_config_timing *dts_timing)
 	dram_set_wr_dq_eye_delay();
 }
 
+static void dram_related_reinit(void)
+{
+	uint32_t i;
+
+	/* DCF secure */
+	write_32(SGRF_BASE + 0xe01c, ((0x3 << 0) << 16) | (0 << 0));
+	/* disable all training by ctl and pi */
+	for (i = 0; i < rk3399_dram_status.timing_config.ch_cnt; i++) {
+		clrbits_32(&rk3399_ddr_pctl[i]->denali_ctl[70], (1 << 24) |
+				(1 << 16) | (1 << 8) | 1);
+		clrbits_32(&rk3399_ddr_pctl[i]->denali_ctl[71], 1);
+
+		clrbits_32(&rk3399_ddr_pi[i]->denali_pi[60], 0x3 << 8);
+		clrbits_32(&rk3399_ddr_pi[i]->denali_pi[80], (0x3 << 24) |
+				(0x3 << 16));
+		clrbits_32(&rk3399_ddr_pi[i]->denali_pi[100], 0x3 << 8);
+		clrbits_32(&rk3399_ddr_pi[i]->denali_pi[124], 0x3 << 16);
+	}
+
+	rk3399_dram_status.exit_suspend = 0;
+}
+
 static uint32_t prepare_ddr_timing(uint32_t mhz)
 {
 	uint32_t index;
 	struct dram_timing_t dram_timing;
-
 	rk3399_dram_status.timing_config.freq = mhz;
 
 	if (mhz < rk3399_dram_status.drv_odt_lp_cfg.ddr3_dll_dis_freq)
@@ -2383,7 +2406,6 @@ static uint32_t prepare_ddr_timing(uint32_t mhz)
 			      &dram_timing, index);
 	rk3399_dram_status.index_freq[index] = mhz;
 
-
 out:
 	return index;
 }
@@ -2408,9 +2430,15 @@ uint64_t ddr_set_rate(uint64_t hz)
 	uint32_t low_power, index;
 	uint32_t mhz = hz / (1000 * 1000);
 
+	if (mhz == 0)
+		return 0;
+
 	if (mhz ==
 	    rk3399_dram_status.index_freq[rk3399_dram_status.current_index])
 		goto out;
+
+	if (rk3399_dram_status.exit_suspend)
+		dram_related_reinit();
 
 	low_power = exit_low_power();
 	index = prepare_ddr_timing(mhz);
@@ -2441,18 +2469,20 @@ uint64_t ddr_round_rate(uint64_t hz)
 	return dpll_rates_table[index].mhz * 1000 * 1000;
 }
 
-void switch_index_to_f0(void)
+void ddr_switch_index_to_f0(void)
 {
 	uint32_t index, freq;
 
 	index = rk3399_dram_status.current_index;
 	freq = rk3399_dram_status.index_freq[index];
-
 	if (index) {
 		rk3399_dram_status.index_freq[index] = 0;
-		ddr_set_rate(freq);
+		ddr_set_rate(freq * 1000000);
 	}
 	exit_low_power();
+	rk3399_dram_status.index_freq[0] = 0;
+	rk3399_dram_status.index_freq[1] = 0;
+	rk3399_dram_status.exit_suspend = 1;
 }
 
 uint64_t dts_timing_receive(uint64_t timing, uint64_t index)
