@@ -1012,7 +1012,7 @@ static int sys_pwr_domain_suspend(void)
 	mmio_setbits_32(PMU_BASE + PMU_PWRDN_CON, BIT(PMU_SCU_B_PWRDWN_EN));
 
 	INFO("the test count: %d\n", wakeup_count++);
-
+	secure_timer_disable();
 	pwm_regulator_suspend();
 	if (pll_suspend_enable) {
 		plls_suspend();
@@ -1081,7 +1081,7 @@ static int sys_pwr_domain_resume(void)
 
 	debug_ddr_suspend = 0;
 	pwm_regulator_resume();
-
+	secure_timer_init();
 	console_init(PLAT_RK_UART_BASE, PLAT_RK_UART_CLOCK,
 		     PLAT_RK_UART_BAUDRATE);
 	sys_slp_unconfig();

@@ -123,6 +123,12 @@ void secure_timer_init(void)
 		      TIMER_EN | TIMER_FMODE);
 }
 
+void secure_timer_disable(void)
+{
+	mmio_write_32(STIMER1_CHN_BASE(5) + TIMER_CONTROL_REG,
+		      TIMER_DIS);
+}
+
 void sgrf_init(void)
 {
 	/* security config for master */
