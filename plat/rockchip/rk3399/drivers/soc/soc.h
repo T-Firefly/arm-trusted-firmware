@@ -167,7 +167,7 @@ struct deepsleep_data_s {
 #define TIMER_CONTROL_REG	0x1c
 
 #define TIMER_EN			0x1
-#define TIMER_DIS			0x1
+#define TIMER_DIS			0x0
 #define TIMER_FMODE		(0x0 << 1)
 #define TIMER_RMODE		(0x1 << 1)
 
