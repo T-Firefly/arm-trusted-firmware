@@ -43,6 +43,7 @@
 #define EN_WDQ_LEVELING	(0)
 
 #define ENPER_CS_TRAINING_FREQ	(933)
+#define LOW_POWER_DIS_FREQ	(600)
 
 struct pll_div {
 	unsigned int mhz;
@@ -88,6 +89,7 @@ static struct rk3399_msch_regs * const rk3399_msch[2] = {
 struct rk3399_dram_status {
 	uint32_t current_index;
 	uint32_t index_freq[2];
+	uint32_t low_power_stat;
 	uint32_t exit_suspend;
 	struct timing_related_config timing_config;
 	struct drv_odt_lp_config drv_odt_lp_cfg;
@@ -2222,9 +2224,6 @@ uint32_t exit_low_power(void)
 			continue;
 
 		/* exit stdby mode */
-		low_power |=
-		    ((read_32(&rk3399_ddr_cic->cic_ctrl1) >>
-		      channel) & 0x1) << (3 + 8 * channel);
 		write_32(&rk3399_ddr_cic->cic_ctrl1,
 			 (1 << (channel + 16)) | (0 << channel));
 		/* exit external self-refresh */
@@ -2233,20 +2232,18 @@ uint32_t exit_low_power(void)
 		    << (4 + 8 * channel);
 		clrbits_32(PMU_BASE + PMU_SFT_CON, 1 << tmp);
 		while (!(read_32(PMU_BASE + PMU_DDR_SREF_ST) &
-				(1 << channel)));
+				(1 << channel)))
+			;
 		/* exit auto low-power */
-		low_power |=
-		    (read_32(&ddr_pctl_regs->denali_ctl[101]) &
-		     0x7) << (8 * channel);
 		clrbits_32(&ddr_pctl_regs->denali_ctl[101], 0x7);
 		/* lp_cmd to exit */
 		if (((read_32(&ddr_pctl_regs->denali_ctl[100]) >>
-		      24) & 0x7F) != 0x40) {
+		      24) & 0x7f) != 0x40) {
 			while
 				(read_32(&ddr_pctl_regs->denali_ctl[200])
 				 & 0x1);
 			clrsetbits_32(&ddr_pctl_regs->denali_ctl[93],
-					  0xFF << 24,
+					  0xff << 24,
 				      0x69 << 24);
 			while (((
 				 read_32(&ddr_pctl_regs->denali_ctl[100])
@@ -2366,6 +2363,62 @@ static void dram_set_wr_dq_eye_delay(void)
 	}
 }
 
+static void dram_low_power_config( struct drv_odt_lp_config *lp_config)
+{
+	uint32_t tmp, tmp1, i;
+	uint32_t ch_cnt = rk3399_dram_status.timing_config.ch_cnt;
+	uint32_t dram_type = rk3399_dram_status.timing_config.dram_type;
+	uint32_t *low_power = &rk3399_dram_status.low_power_stat;
+
+	if (dram_type == LPDDR4)
+		tmp = (lp_config->srpd_lite_idle << 16) |
+		      lp_config->pd_idle;
+	else
+		tmp = lp_config->pd_idle;
+
+	if (dram_type == DDR3)
+		tmp1 = (2 << 16) | (0x7 << 8) | 7;
+	else
+		tmp1 = (3 << 16) | (0x7 << 8) | 7;
+
+	*low_power = 0;
+	for (i = 0; i < ch_cnt; i++) {
+		write_32(&rk3399_ddr_pctl[i]->denali_ctl[102], tmp);
+		clrsetbits_32(&rk3399_ddr_pctl[i]->denali_ctl[103], 0xffff,
+			      (lp_config->sr_mc_gate_idle << 8) |
+			      lp_config->sr_idle);
+		clrsetbits_32(&rk3399_ddr_pctl[i]->denali_ctl[101], 0x70f0f, tmp1);
+		*low_power |= (7 << (8 * i));
+	}
+
+	/* standby idle */
+	write_32(&rk3399_ddr_cic->cic_idle_th, lp_config->standby_idle);
+	write_32(&rk3399_ddr_cic->cic_cg_wait_th, 0x640008);
+
+	if (ch_cnt == 2) {
+		write_32(GRF_BASE + GRF_DDRC1_CON1,
+			 (((0x1<<4) | (0x1<<5) | (0x1<<6) | (0x1<<7)) << 16) |
+			 ((0x1<<4) | (0x0<<5) | (0x1<<6) | (0x1<<7)));
+		if (lp_config->standby_idle) {
+			tmp = 0x002a002a;
+			*low_power |= (1 << 11);
+		} else {
+			tmp = 0;
+		}
+		write_32(&rk3399_ddr_cic->cic_ctrl1, tmp);
+	}
+	write_32(GRF_BASE + GRF_DDRC0_CON1,
+		 (((0x1<<4) | (0x1<<5) | (0x1<<6) | (0x1<<7)) << 16) |
+		 ((0x1<<4) | (0x0<<5) | (0x1<<6) | (0x1<<7)));
+	if (lp_config->standby_idle) {
+		tmp = 0x00150015;
+		*low_power |= (1 << 3);
+	} else {
+		tmp = 0;
+	}
+	write_32(&rk3399_ddr_cic->cic_ctrl1, tmp);
+}
+
 static void dram_related_init(struct ddr_dts_config_timing *dts_timing)
 {
 	uint32_t trefi0, trefi1;
@@ -2423,6 +2476,7 @@ static void dram_related_init(struct ddr_dts_config_timing *dts_timing)
 			&rk3399_dram_status.drv_odt_lp_cfg);
 
 	dram_set_wr_dq_eye_delay();
+	dram_low_power_config(&rk3399_dram_status.drv_odt_lp_cfg);
 }
 
 static void dram_related_reinit(void)
@@ -2533,6 +2587,8 @@ uint64_t ddr_set_rate(uint64_t hz)
 		gen_rk3399_set_odt(0);
 
 	rk3399_dram_status.current_index = index;
+	if (mhz <= LOW_POWER_DIS_FREQ)
+		low_power |= rk3399_dram_status.low_power_stat;
 	resume_low_power(low_power);
 out:
 	return mhz;

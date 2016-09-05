@@ -248,7 +248,7 @@ struct deepsleep_data_s {
 #define SGRF_H_MST_S_DDR_RGN(n)	BIT_WITH_WMSK((n) + 8)
 
 /* dmac to periph s or ns*/
-#define SGRF_DMAC_CFG_S		0xffff0000
+#define SGRF_DMAC_CFG_S			0xffff0000
 
 #define DMAC1_RGN_NS			0xff000000
 #define DMAC0_RGN_NS			0x00ff0000
@@ -263,12 +263,16 @@ struct deepsleep_data_s {
 #define DMAC1_BOOT_PERIPH_H_NS		0xffffffff
 #define DMAC1_BOOT_IRQ_NS		0xffffffff
 
-#define CPU_BOOT_ADDR_WMASK	0xffff0000
-#define CPU_BOOT_ADDR_ALIGN	16
+#define CPU_BOOT_ADDR_WMASK		0xffff0000
+#define CPU_BOOT_ADDR_ALIGN		16
 
 #define PMUGRF_GPIO1B_IOMUX		0x0014
 #define PMUGRF_GPIO1C_IOMUX		0x0018
 #define GRF_GPIO4C_IOMUX		0xe028
+#define GRF_DDRC0_CON0			0xe380
+#define GRF_DDRC0_CON1			0xe384
+#define GRF_DDRC1_CON0			0xe388
+#define GRF_DDRC1_CON1			0xe38c
 
 /*
  * When system reset in running state, we want the cpus to be reboot
