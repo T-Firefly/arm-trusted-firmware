@@ -192,6 +192,7 @@ struct dram_info_t {
 struct timing_related_config {
 	struct dram_info_t dram_info[2];
 	uint32_t dram_type;
+	uint32_t dram_bw;
 	/* MHz */
 	uint32_t freq;
 	uint32_t ch_cnt;

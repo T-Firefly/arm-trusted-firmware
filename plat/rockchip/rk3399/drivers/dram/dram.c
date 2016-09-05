@@ -81,6 +81,10 @@ static struct rk3399_ddr_publ_regs *const rk3399_ddr_publ[2] = {
 	(void *)DDRC0_PHY_BASE, (void *)DDRC1_PHY_BASE
 };
 
+static struct rk3399_msch_regs * const rk3399_msch[2] = {
+	(void *)SERVER_MSCH0_BASE_ADDR, (void *)SERVER_MSCH1_BASE_ADDR
+};
+
 struct rk3399_dram_status {
 	uint32_t current_index;
 	uint32_t index_freq[2];
@@ -395,6 +399,7 @@ static void sdram_timing_cfg_init(struct timing_related_config *ptiming_config,
 		}
 	}
 	ptiming_config->dram_type = psdram_config->dramtype;
+	ptiming_config->dram_bw = psdram_config->ch[0].bus_width;
 	ptiming_config->ch_cnt = psdram_config->channal_num;
 	switch (psdram_config->dramtype) {
 	case DDR3:
@@ -2074,6 +2079,78 @@ static void gen_rk3399_phy_params(struct timing_related_config *timing_config,
 	}
 }
 
+static void get_rk3399_noc_timing(struct dram_timing_t *pdram_timing,
+		struct timing_related_config *timing_config)
+{
+	uint32_t dram_type = timing_config->dram_type;
+	uint32_t bw = timing_config->dram_bw;
+	uint32_t i;
+
+	struct rk3399_msch_timings noc_timing;
+
+	memset((void *)&noc_timing.ddrtiminga0.d32, 0,
+	       sizeof(struct rk3399_msch_timings));
+	/* ddrtiminga0 */
+	noc_timing.ddrtiminga0.b.acttoact = pdram_timing->trc / 2;
+	noc_timing.ddrtiminga0.b.rdtomiss = (pdram_timing->trtp +
+		pdram_timing->trp + pdram_timing->trcd +
+		pdram_timing->bl / 2) / 2;
+	noc_timing.ddrtiminga0.b.wrtomiss = (pdram_timing->cwl +
+		pdram_timing->twr + pdram_timing->trp + pdram_timing->trcd) / 2;
+
+	noc_timing.ddrtiminga0.b.readlatency = 0x80;
+
+	/* ddrtimingb0 */
+	if (dram_type == LPDDR4) {
+		noc_timing.ddrtimingb0.b.rdtowr = (pdram_timing->cl +
+			pdram_timing->tdqsck_max - pdram_timing->cwl + 2) / 2;
+		noc_timing.ddrtimingb0.b.wrtord = (pdram_timing->cwl + 1 +
+			pdram_timing->twtr + pdram_timing->bl / 2) / 2;
+	} else if (dram_type == LPDDR3) {
+		noc_timing.ddrtimingb0.b.rdtowr = (pdram_timing->cl +
+			pdram_timing->tdqsck_max + pdram_timing->bl / 2 + 1 -
+			pdram_timing->cwl) / 2;
+		noc_timing.ddrtimingb0.b.wrtord = (pdram_timing->cwl + 1 +
+			pdram_timing->twtr + pdram_timing->bl / 2) / 2;
+	} else { /* DDR3 */
+		noc_timing.ddrtimingb0.b.rdtowr = (pdram_timing->cl -
+			pdram_timing->cwl + 2) / 2;
+		noc_timing.ddrtimingb0.b.wrtord = (pdram_timing->cwl +
+			pdram_timing->twtr + pdram_timing->bl / 2) / 2;
+	}
+	noc_timing.ddrtimingb0.b.rrd = pdram_timing->trrd / 2;
+	noc_timing.ddrtimingb0.b.faw = pdram_timing->tfaw / 2;
+	/* ddrtimingc0 */
+	/*bw = 32 : 2; bw = 16 : 4 */
+	noc_timing.ddrtimingc0.b.burstpenalty = (bw == 32) ? 2 : 4;
+	if (dram_type == LPDDR4)
+		noc_timing.ddrtimingc0.b.wrtomwr =
+			noc_timing.ddrtimingc0.b.burstpenalty * 3;
+	else
+		noc_timing.ddrtimingc0.b.wrtomwr = 0;
+	/* devtodev0 need to check with candence */
+	noc_timing.devtodev0.b.busrdtord = pdram_timing->tccd + 2;
+	noc_timing.devtodev0.b.busrdtowr = noc_timing.ddrtimingb0.b.rdtowr + 2;
+	noc_timing.devtodev0.b.buswrtord = noc_timing.ddrtimingb0.b.wrtord + 2;
+	noc_timing.devtodev0.b.buswrtowr = pdram_timing->tccd + 2;
+	/* ddrmode */
+	noc_timing.ddrmode.b.autoprecharge = 0;
+	noc_timing.ddrmode.b.bypassfiltering = 0;
+	noc_timing.ddrmode.b.fawbank = 1;
+	noc_timing.ddrmode.b.burstsize =
+		((bw / 4 * pdram_timing->bl) >> 4) + 1;
+	/* fix noc bug, don't set to 0 for lp3 and ddr3 mode */
+	noc_timing.ddrmode.b.mwrsize = (bw == 16) ? 1 : 2;
+	noc_timing.ddrmode.b.forceorder = 0;
+
+	for (i = 0; i < timing_config->ch_cnt; i++) {
+		memcpy((void *)&rk3399_msch[i]->ddrtiminga0.d32,
+				&noc_timing.ddrtiminga0.d32, 16);
+		rk3399_msch[i]->ddrmode = noc_timing.ddrmode;
+		rk3399_msch[i]->agingx0 = noc_timing.agingx0;
+	}
+}
+
 static int to_get_clk_index(unsigned int mhz)
 {
 	int pll_cnt, i;
@@ -2146,9 +2223,9 @@ uint32_t exit_low_power(void)
 
 		/* exit stdby mode */
 		low_power |=
-		    ((read_32((uintptr_t) &rk3399_ddr_cic->cic_ctrl1) >>
+		    ((read_32(&rk3399_ddr_cic->cic_ctrl1) >>
 		      channel) & 0x1) << (3 + 8 * channel);
-		write_32((uintptr_t) &rk3399_ddr_cic->cic_ctrl1,
+		write_32(&rk3399_ddr_cic->cic_ctrl1,
 			 (1 << (channel + 16)) | (0 << channel));
 		/* exit external self-refresh */
 		tmp = channel ? 12 : 8;
@@ -2159,19 +2236,20 @@ uint32_t exit_low_power(void)
 				(1 << channel)));
 		/* exit auto low-power */
 		low_power |=
-		    (read_32((uintptr_t) &ddr_pctl_regs->denali_ctl[101]) &
+		    (read_32(&ddr_pctl_regs->denali_ctl[101]) &
 		     0x7) << (8 * channel);
-		clrbits_32((uintptr_t) &ddr_pctl_regs->denali_ctl[101], 0x7);
+		clrbits_32(&ddr_pctl_regs->denali_ctl[101], 0x7);
 		/* lp_cmd to exit */
-		if (((read_32((uintptr_t) &ddr_pctl_regs->denali_ctl[100]) >>
+		if (((read_32(&ddr_pctl_regs->denali_ctl[100]) >>
 		      24) & 0x7F) != 0x40) {
-			while (read_32((uintptr_t) &ddr_pctl_regs->denali_ctl[200])
-				   & 0x1);
-			clrsetbits_32((uintptr_t) &ddr_pctl_regs->denali_ctl[93],
+			while
+				(read_32(&ddr_pctl_regs->denali_ctl[200])
+				 & 0x1);
+			clrsetbits_32(&ddr_pctl_regs->denali_ctl[93],
 					  0xFF << 24,
 				      0x69 << 24);
 			while (((
-				 read_32((uintptr_t) &ddr_pctl_regs->denali_ctl[100])
+				 read_32(&ddr_pctl_regs->denali_ctl[100])
 				 >> 24) & 0x7f) != 0x40);
 		}
 	}
@@ -2198,10 +2276,10 @@ void resume_low_power(uint32_t low_power)
 		setbits_32(PMU_BASE + PMU_SFT_CON, val << tmp);
 		/* resume auto low-power */
 		val = (low_power >> (8 * channel)) & 0x7;
-		setbits_32((uintptr_t) &ddr_pctl_regs->denali_ctl[101], val);
+		setbits_32(&ddr_pctl_regs->denali_ctl[101], val);
 		/* resume stdby mode */
 		val = (low_power >> (3 + 8 * channel)) & 0x1;
-		write_32((uintptr_t) &rk3399_ddr_cic->cic_ctrl1,
+		write_32(&rk3399_ddr_cic->cic_ctrl1,
 			 (1 << (channel + 16)) | (val << channel));
 	}
 }
@@ -2238,7 +2316,6 @@ void dcf_code_init(void)
 	/* set dcf master secure */
 	write_32(SGRF_BASE + 0xe01c, ((0x3 << 0) << 16) | (0 << 0));
 	write_32(DCF_BASE + 0x14, 24 * 1000000);
-	write_32(PMU_BASE + 0xd8, 0x0);
 }
 
 static void dcf_start(uint32_t freq, uint32_t index)
@@ -2305,15 +2382,15 @@ static void dram_related_init(struct ddr_dts_config_timing *dts_timing)
 			      &sdram_config,
 			      &rk3399_dram_status.drv_odt_lp_cfg);
 
-	trefi0 = ((read_32((uintptr_t) &rk3399_ddr_pctl[0]->denali_ctl[48]) >>
+	trefi0 = ((read_32(&rk3399_ddr_pctl[0]->denali_ctl[48]) >>
 		   16) & 0xffff) + 8;
-	trefi1 = ((read_32((uintptr_t) &rk3399_ddr_pctl[0]->denali_ctl[49]) >>
+	trefi1 = ((read_32(&rk3399_ddr_pctl[0]->denali_ctl[49]) >>
 		   16) & 0xffff) + 8;
 
 	rk3399_dram_status.index_freq[0] = trefi0 * 10 / 39;
 	rk3399_dram_status.index_freq[1] = trefi1 * 10 / 39;
 	rk3399_dram_status.current_index =
-	    (read_32((uintptr_t) &rk3399_ddr_pctl[0]->denali_ctl[111])
+	    (read_32(&rk3399_ddr_pctl[0]->denali_ctl[111])
 	     >> 16) & 0x3;
 	rk3399_dram_status.exit_suspend = 0;
 	if (rk3399_dram_status.timing_config.dram_type == DDR3) {
@@ -2374,6 +2451,7 @@ static uint32_t prepare_ddr_timing(uint32_t mhz)
 {
 	uint32_t index;
 	struct dram_timing_t dram_timing;
+
 	rk3399_dram_status.timing_config.freq = mhz;
 
 	if (mhz < rk3399_dram_status.drv_odt_lp_cfg.ddr3_dll_dis_freq)
@@ -2388,6 +2466,8 @@ static uint32_t prepare_ddr_timing(uint32_t mhz)
 	}
 
 	index = (rk3399_dram_status.current_index + 1) & 0x1;
+	dram_get_parameter(&rk3399_dram_status.timing_config, &dram_timing);
+	get_rk3399_noc_timing(&dram_timing, &rk3399_dram_status.timing_config);
 	if (rk3399_dram_status.index_freq[index] == mhz)
 		goto out;
 
@@ -2395,7 +2475,6 @@ static uint32_t prepare_ddr_timing(uint32_t mhz)
 	 * checking if having available gate traiing timing for
 	 * target freq.
 	 */
-	dram_get_parameter(&rk3399_dram_status.timing_config, &dram_timing);
 
 	gen_rk3399_ctl_params(&rk3399_dram_status.timing_config,
 			      &dram_timing, index);

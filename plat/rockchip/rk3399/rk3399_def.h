@@ -121,6 +121,9 @@
 #define DDRC1_PI_BASE		(DDRC1_BASE + DDR_PI_OFFSET)
 #define DDRC1_PHY_BASE		(DDRC1_BASE + DDR_PHY_OFFSET)
 
+#define SERVER_MSCH0_BASE_ADDR	0xFFA84000
+#define SERVER_MSCH1_BASE_ADDR	0xFFA8C000
+
 /*
  * include i2c pmu/audio, pwm0-3 rkpwm0-3 uart_dbg,mailbox scr
  * 0xff650000 -0xff6c0000
