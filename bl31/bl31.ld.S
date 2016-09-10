@@ -34,12 +34,10 @@ OUTPUT_FORMAT(PLATFORM_LINKER_FORMAT)
 OUTPUT_ARCH(PLATFORM_LINKER_ARCH)
 ENTRY(bl31_entrypoint)
 
-
 MEMORY {
     RAM (rwx): ORIGIN = BL31_BASE, LENGTH = BL31_LIMIT - BL31_BASE
-    PMU_SRAM (rwx): ORIGIN = PSRAM_LDS_BASE, LENGTH = (100*1024)
+    SRAM (rwx): ORIGIN = SRAM_LDS_BASE, LENGTH = SRAM_LDS_SIZE
 }
-
 
 SECTIONS
 {
@@ -186,34 +184,27 @@ SECTIONS
 #endif
 
     ASSERT(. <= BL31_LIMIT, "BL31 image has exceeded its limit.")
- /*
- * for code and date in sram
- */
+    /*
+     * for code and date need to run in common sram
+     */
+    . = ALIGN(4);
+    __bl31_sram_lma_start = .;
+    __bl31_sram_start = SRAM_LDS_BASE;
+    .text_sram __bl31_sram_start : AT(__bl31_sram_lma_start) {
+	*(.sram.text)
+	*(.sram.rodata)
 	. = ALIGN(4);
+    } >SRAM
+    __bl31_sram_code_size = SIZEOF(.text_sram);
 
-	__bl31_sram_lma_start = .;
-	__bl31_sram_coderegion_start = PSRAM_LDS_BASE;
-	.text_sram_code __bl31_sram_coderegion_start : AT(__bl31_sram_lma_start) {
-		__bl31_ssram_code = .;
-		*(.sram.text)
-		*(.sram.rodata)
-		. = ALIGN(4);
-		__bl31_esram_code = .;
-	} >PMU_SRAM
-
-	. = ALIGN(4096);
-	__bl31_sram_dataregion_start = .;
-
-	__bl31_sram_data_lma_start = LOADADDR(.text_sram_code) + SIZEOF(.text_sram_code);
-
-	.data_sram . : AT(__bl31_sram_data_lma_start) {
-		. = ALIGN(4);
-		__bl31_ssram_data = .;
-		*(.sram.data)
-		. = ALIGN(4);
-		__bl31_esram_data = .;
-	} >PMU_SRAM
-
-	//. = ALIGN(4096);
-	//__bl31_sram_dataregion_end = .;
+    . = ALIGN(4096);
+    __bl31_sram_data_lma_start = LOADADDR(.text_sram) + SIZEOF(.text_sram);
+    __bl31_sram_data_start = .;
+    .data_sram . : AT(__bl31_sram_data_lma_start) {
+	*(.sram.data)
+	. = ALIGN(4);
+    } >SRAM
+    __bl31_sram_data_size = SIZEOF(.data_sram);
+    . = ALIGN(4096);
+    __bl31_sram_data_end = .;
 }

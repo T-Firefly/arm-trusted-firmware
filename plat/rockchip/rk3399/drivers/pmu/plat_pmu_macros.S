@@ -29,6 +29,15 @@
 #include <platform_def.h>
 
 	.globl	clst_warmboot_data
+	.globl	pmu_ddr_suspend
+	.globl	pmu_ddr_resume
+
+	.macro sram_func _name
+	.section .sram.text, "ax"
+	.type \_name, %function
+	.func \_name
+	\_name:
+	.endm
 
 #define PLL_MODE_SHIFT	(0x8)
 #define PLL_NORMAL_MODE	((0x3 << (PLL_MODE_SHIFT + 16)) | \
@@ -65,3 +74,79 @@ clst_warmboot_data:
 	.word	0
 	.endr
 .endm
+
+sram_func pmu_ddr_suspend
+	mov	x5, PMU_BASE
+	ldr	w0, [x5, #0x0024]
+	bic	w0, w0, #0x1000
+	bic	w0, w0, #0x0100
+	ldr	w0, [x5, #0x0024]
+	orr	w0, w0, #0x1000
+	orr	w0, w0, #0x0100
+	str	w0, [x5, #0x0024]
+loop_1:
+	ldr	w1, [x5, #0x0098]
+	and	w2, w1, #0x01
+	and	w3, w1, #0x04
+	orr	w2, w2, w3
+	cmp	w2, #0x5
+	b.eq	loop_1
+
+	mov	x5, CRU_BASE
+	ldr	w0, [x5, #0x0118]
+	bic	w0, w0, #0x00000030
+	orr	w0, w0, #0x00300000
+	orr	w0, w0, #0x00000010
+	str	w0, [x5, #0x0118]
+	mov	x5, PMU_BASE
+	ldr	w0, [x5, #0x0024]
+	bic	w0, w0, #0x1000
+	bic	w0, w0, #0x0100
+	str	w0, [x5, #0x0024]
+loop_2:
+	ldr	w1, [x5, #0x0098]
+	and	w2, w1, #0x01
+	and	w3, w1, #0x04
+	orr	w2, w2, w3
+	cmp	w2, #0x0
+	b.eq	loop_2
+	ret
+endfunc pmu_ddr_suspend
+
+sram_func pmu_ddr_resume
+	mov	x5, PMU_BASE
+	ldr	w0, [x5, #0x0024]
+	bic	w0, w0, #0x1000
+	bic	w0, w0, #0x0100
+	ldr	w0, [x5, #0x0024]
+	orr	w0, w0, #0x1000
+	orr	w0, w0, #0x0100
+	str	w0, [x5, #0x0024]
+loop_3:
+	ldr	w1, [x5, #0x0098]
+	and	w2, w1, #0x01
+	and	w3, w1, #0x04
+	orr	w2, w2, w3
+	cmp	w2, #0x5
+	b.eq	loop_3
+	mov	x5, CRU_BASE
+	ldr	w0, [x5, #0x0118]
+	bic	w0, w0, #0x00000030
+	orr	w0, w0, #0x00300000
+	orr	w0, w0, #0x00000020
+	str	w0, [x5, #0x0118]
+	mov	x5, PMU_BASE
+	ldr	w0, [x5, #0x0024]
+	bic	w0, w0, #0x1000
+	bic	w0, w0, #0x0100
+	str	w0, [x5, #0x0024]
+loop_4:
+	ldr	w1, [x5, #0x0098]
+	and	w2, w1, #0x01
+	and	w3, w1, #0x04
+	orr	w2, w2, w3
+	cmp	w2, #0x0
+	b.eq	loop_4
+	ret
+endfunc pmu_ddr_resume
+

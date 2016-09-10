@@ -933,4 +933,6 @@ struct pmu_slpdata_s {
 };
 
 extern uint32_t clst_warmboot_data[PLATFORM_CLUSTER_COUNT];
+void  (pmu_ddr_suspend)(void);
+void  (pmu_ddr_resume)(void);
 #endif /* __PMU_H__ */

@@ -45,6 +45,8 @@
 #include <pmu_com.h>
 #include <dmc.h>
 #include <console.h>
+#include <rk3399m0.h>
+
 DEFINE_BAKERY_LOCK(rockchip_pd_lock);
 
 static struct psram_data_t *psram_sleep_cfg =
@@ -492,12 +494,7 @@ static void pmu_scu_b_pwrup(void)
 {
 	mmio_clrbits_32(PMU_BASE + PMU_SFT_CON, BIT(ACINACTM_CLUSTER_B_CFG));
 }
-extern uint32_t __bl31_ssram_code, __bl31_sram_lma_start;
-extern uint32_t __bl31_esram_code;
-extern uint32_t __bl31_ssram_data, __bl31_sram_data_lma_start;
-extern uint32_t __bl31_esram_data;
-void  (*pmu_ddr_suspend)(void);
-void  (*pmu_ddr_resume)(void);
+
 void plat_rockchip_pmusram_prepare(void)
 {
 	uint32_t *sram_dst, *sram_src;
@@ -510,32 +507,14 @@ void plat_rockchip_pmusram_prepare(void)
 	sram_src = (uint32_t *)&pmu_cpuson_entrypoint_start;
 	sram_size = (uint32_t *)&pmu_cpuson_entrypoint_end -
 		    (uint32_t *)sram_src;
-
 	u32_align_cpy(sram_dst, sram_src, sram_size);
 
-	sram_dst = (uint32_t *)(PMUSRAM_BASE + SIZE_K(1));
-	sram_src = (uint32_t *)&pmu_ddr_test_start;
-	sram_size = (uint32_t *)&pmu_ddr_test_end -
-		    (uint32_t *)sram_src;
+	sram_dst = (uint32_t *)M0_BINCODE_TEXT_MEM_BASE;
+	sram_src = (uint32_t *)rk3399m0_h;
+	sram_size = rk3399m0_h_size;
 	u32_align_cpy(sram_dst, sram_src, sram_size);
-	pmu_ddr_suspend = (void(*) ())(PMUSRAM_BASE + 1024);
-	sram_dst = (uint32_t *)(PMUSRAM_BASE + 1280);
-	sram_src = (uint32_t *)&pmu_ddr_resume_satrt;
-	sram_size = (uint32_t *)&pmu_ddr_resume_end -
-		    (uint32_t *)sram_src;
-	u32_align_cpy(sram_dst, sram_src, sram_size);
-	pmu_ddr_resume = (void(*) ())(PMUSRAM_BASE + 1280);
 
 	psram_sleep_cfg->sp = PSRAM_DT_BASE;
-	sram_dst = &__bl31_ssram_code;
-	sram_src = &__bl31_sram_lma_start;
-	sram_size = (uint32_t *)&__bl31_esram_code - sram_dst;
-
-	u32_align_cpy(sram_dst, sram_src, sram_size);
-	sram_dst = &__bl31_ssram_data;
-	sram_src = &__bl31_sram_data_lma_start;
-	sram_size = (uint32_t *)&__bl31_esram_data - sram_dst;
-	u32_align_cpy(sram_dst, sram_src, sram_size);
 }
 
 static inline uint32_t get_cpus_pwr_domain_cfg_info(uint32_t cpu_id)
@@ -880,6 +859,7 @@ static void sys_slp_config(void)
 		set_abpll();
 		pmu_ddr_suspend();
 	}
+
 	debug_iomux = mmio_read_32(PMUGRF_BASE);
 	if (pmu_debug_enable) {
 		mmio_write_32(PMUGRF_BASE, 0xfff0aaa0);
@@ -972,6 +952,22 @@ static void clr_hw_idle(uint32_t hw_idle)
 uint32_t wakeup_count;
 int skip_suspend;
 
+void m0_clock_init(void)
+{
+	mmio_write_32(PMUCRU_BASE + PMUCRU_CLKGATE_CON2, REG_SOC_WMSK);
+	mmio_write_32(PMUCRU_BASE + PMUCRU_CLKSEL_CON0,
+		      BIT_WITH_WMSK(15) | BITS_WITH_WMASK(0x0, 0x1f, 8));
+	mmio_write_32(PMUCRU_BASE + PMUCRU_SOFTRST_CON0,
+		      BITS_WITH_WMASK(0x0, 0x2c, 0x0));
+	mmio_write_32(PMUCRU_BASE + PMUCRU_GATEDIS_CON0, BIT_WITH_WMSK(1));
+	mmio_write_32(PMUCRU_BASE + SGRF_PMU_CON0, BIT_WITH_WMSK(1));
+}
+
+void m0_reset(void)
+{
+	mmio_write_32(PMUCRU_BASE + 0x110, 0x002c0024);
+}
+
 static int sys_pwr_domain_suspend(void)
 {
 	uint32_t wait_cnt = 0;
@@ -988,9 +984,8 @@ static int sys_pwr_domain_suspend(void)
 		    BIT(PMU_CLR_MSCH1) |
 		    BIT(PMU_CLR_CCIM0) |
 		    BIT(PMU_CLR_CCIM1) |
-		    BIT(PMU_CLR_CENTER) |
-		    BIT(PMU_CLR_PERILP) |
-		    BIT(PMU_CLR_PMU));
+		    BIT(PMU_CLR_CENTER));
+
 	if (center_pd_enable)
 		dmc_save();
 	sys_slp_config();
@@ -1043,6 +1038,8 @@ static int sys_pwr_domain_suspend(void)
 		INFO("can't sleep , the wake up interupt\n");
 		skip_suspend = 1;
 	}
+
+	m0_clock_init();
 	INFO("suspend end\n");
 	return 0;
 }
@@ -1145,12 +1142,12 @@ static int sys_pwr_domain_resume(void)
 				BIT(PMU_CLR_MSCH1) |
 				BIT(PMU_CLR_CCIM0) |
 				BIT(PMU_CLR_CCIM1) |
-				BIT(PMU_CLR_CENTER) |
-				BIT(PMU_CLR_PERILP) |
-				BIT(PMU_CLR_PMU));
+				BIT(PMU_CLR_CENTER));
 
 	plat_rockchip_gic_cpuif_enable();
 	sgrf_init();
+	m0_reset();
+	INFO("resume end...\n");
 	return 0;
 }
 

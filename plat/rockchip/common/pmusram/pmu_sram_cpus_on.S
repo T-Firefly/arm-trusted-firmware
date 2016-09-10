@@ -31,10 +31,6 @@
 
 	.globl pmu_cpuson_entrypoint_start
 	.globl pmu_cpuson_entrypoint_end
-	.globl pmu_ddr_test_start
-	.globl pmu_ddr_test_end
-	.globl pmu_ddr_resume_satrt
-	.globl pmu_ddr_resume_end
 
 func pmu_cpuson_entrypoint
 pmu_cpuson_entrypoint_start:
@@ -78,83 +74,3 @@ sys_wakeup_entry:
 pmu_cpuson_entrypoint_end:
 	.word	0
 endfunc pmu_cpuson_entrypoint
-
-func pmu_ddr_test
-pmu_ddr_test_start:
-	mov	x5, PMU_BASE
-	ldr	w0, [x5, #0x0024]
-	bic	w0, w0, #0x1000
-	bic	w0, w0, #0x0100
-	ldr	w0, [x5, #0x0024]
-	orr	w0, w0, #0x1000
-	orr	w0, w0, #0x0100
-	str	w0, [x5, #0x0024]
-loop_1:
-	ldr	w1, [x5, #0x0098]
-	and	w2, w1, #0x01
-	and	w3, w1, #0x04
-	orr	w2, w2, w3
-	cmp	w2, #0x5
-	b.eq	loop_1
-
-	mov	x5, CRU_BASE
-	ldr	w0, [x5, #0x0118]
-	bic	w0, w0, #0x00000030
-	orr	w0, w0, #0x00300000
-	orr	w0, w0, #0x00000010
-	str	w0, [x5, #0x0118]
-	mov	x5, PMU_BASE
-	ldr	w0, [x5, #0x0024]
-	bic	w0, w0, #0x1000
-	bic	w0, w0, #0x0100
-	str	w0, [x5, #0x0024]
-loop_2:
-	ldr	w1, [x5, #0x0098]
-	and	w2, w1, #0x01
-	and	w3, w1, #0x04
-	orr	w2, w2, w3
-	cmp	w2, #0x0
-	b.eq	loop_2
-	ret
-pmu_ddr_test_end:
-	.word	0
-endfunc pmu_ddr_test
-
-func pmu_ddr_resume
-pmu_ddr_resume_satrt:
-	mov	x5, PMU_BASE
-	ldr	w0, [x5, #0x0024]
-	bic	w0, w0, #0x1000
-	bic	w0, w0, #0x0100
-	ldr	w0, [x5, #0x0024]
-	orr	w0, w0, #0x1000
-	orr	w0, w0, #0x0100
-	str	w0, [x5, #0x0024]
-loop_3:
-	ldr	w1, [x5, #0x0098]
-	and	w2, w1, #0x01
-	and	w3, w1, #0x04
-	orr	w2, w2, w3
-	cmp	w2, #0x5
-	b.eq	loop_3
-	mov	x5, CRU_BASE
-	ldr	w0, [x5, #0x0118]
-	bic	w0, w0, #0x00000030
-	orr	w0, w0, #0x00300000
-	orr	w0, w0, #0x00000020
-	str	w0, [x5, #0x0118]
-	mov	x5, PMU_BASE
-	ldr	w0, [x5, #0x0024]
-	bic	w0, w0, #0x1000
-	bic	w0, w0, #0x0100
-	str	w0, [x5, #0x0024]
-loop_4:
-	ldr	w1, [x5, #0x0098]
-	and	w2, w1, #0x01
-	and	w3, w1, #0x04
-	orr	w2, w2, w3
-	cmp	w2, #0x0
-	b.eq	loop_4
-	ret
-pmu_ddr_resume_end:
-endfunc pmu_ddr_resume

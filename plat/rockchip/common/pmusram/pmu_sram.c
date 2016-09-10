@@ -24,7 +24,10 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <console.h>
+#include <debug.h>
 #include <platform.h>
+#include <plat_private.h>
 
 /*****************************************************************************
  * sram only surpport 32-bits access
@@ -35,4 +38,54 @@ void u32_align_cpy(uint32_t *dst, const uint32_t *src, size_t bytes)
 
 	for (i = 0; i < bytes; i++)
 		dst[i] = src[i];
+}
+
+void rockchip_plat_sram_mmu_el3(void)
+{
+	size_t sram_size;
+
+	sram_size =  (char *)&__bl31_sram_data_start -
+		(char *)&__bl31_sram_start;
+
+	mmap_add_region((unsigned long)&__bl31_sram_start,
+			(unsigned long)&__bl31_sram_start,
+			sram_size, MT_MEMORY | MT_RO | MT_SECURE);
+
+	sram_size =  (char *)&__bl31_sram_data_end -
+		(char *)&__bl31_sram_data_start;
+
+	mmap_add_region((unsigned long)&__bl31_sram_data_start,
+			(unsigned long)&__bl31_sram_data_start,
+			sram_size, MT_MEMORY | MT_RW | MT_SECURE);
+}
+
+static void plat_rockchip_comm_sram_init(void)
+{
+	uint32_t *sram_dst, *sram_src;
+	size_t sram_size;
+
+	sram_dst = &__bl31_sram_start;
+	sram_src = &__bl31_sram_lma_start;
+	sram_size = (size_t)&__bl31_sram_code_size;
+	WARN("%s:code:%lx, %lx, %lx\n", __func__, (uint64_t)sram_dst,
+	     (uint64_t)sram_src,  (uint64_t)sram_size);
+
+	if (sram_dst == sram_src)
+		return;
+	u32_align_cpy(sram_dst, sram_src, sram_size / 4);
+
+	sram_dst = &__bl31_sram_data_start;
+	sram_src = &__bl31_sram_data_lma_start;
+	sram_size = (size_t)&__bl31_sram_data_size;
+	u32_align_cpy(sram_dst, sram_src, sram_size / 4);
+}
+
+void plat_rockchip_mem_prepare(void)
+{
+	plat_rockchip_comm_sram_init();
+	/*
+	 * The code for resuming cpu from suspend must be excuted in pmusram.
+	 * Copy the code into pmusram.
+	 */
+	plat_rockchip_pmusram_prepare();
 }

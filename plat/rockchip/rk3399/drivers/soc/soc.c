@@ -79,11 +79,9 @@ const mmap_region_t plat_rk_mmap[] = {
 			MT_DEVICE | MT_RW | MT_SECURE),
 	MAP_REGION_FLAT(DCF_BASE, DCF_SIZE,
 			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(SRAM_BASE, SRAM_SIZE,
+	MAP_REGION_FLAT(VOP_LIT_BASE, VOP_LIT_SIZE,
 			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(0xff8f0000, SIZE_K(64),
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(0xff900000, SIZE_K(64),
+	MAP_REGION_FLAT(VOP_BIG_BASE, VOP_BIG_SIZE,
 			MT_DEVICE | MT_RW | MT_SECURE),
 	MAP_REGION_FLAT(SERVICE_NOC_1_BASE, NOC_1_SIZE,
 			MT_DEVICE | MT_RW | MT_SECURE),
@@ -486,10 +484,21 @@ void  __dead2 soc_global_soft_reset(void)
 		;
 }
 
+void soc_m0_init(void)
+{
+	/* secure config for pmu m0*/
+	mmio_write_32(SGRF_BASE + SGRF_PMU_CON(0), WMSK_BIT(7));
+	mmio_write_32(SGRF_BASE + SGRF_PMU_CON(3),
+		      BITS_WITH_WMASK(0xf8c1, 0xffff, 0x0));
+	mmio_write_32(SGRF_BASE + SGRF_PMU_CON(7),
+		      BITS_WITH_WMASK(0xf, 0xf, 0x0));
+}
+
 void plat_rockchip_soc_init(void)
 {
 	secure_timer_init();
 	dma_secure_cfg(0);
 	sgrf_init();
 	soc_global_soft_reset_init();
+	soc_m0_init();
 }

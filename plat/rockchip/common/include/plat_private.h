@@ -36,6 +36,12 @@
 #include <stdint.h>
 #include <xlat_tables.h>
 #include <psci.h>
+
+extern uint32_t __bl31_sram_start, __bl31_sram_lma_start,
+	__bl31_sram_code_size;
+extern uint32_t __bl31_sram_data_start, __bl31_sram_data_lma_start,
+	__bl31_sram_data_size, __bl31_sram_data_end;
+
 /* Tag variables with this */
 #define __sramdata __attribute__((section(".sram.data")))
 /* Tag constants with this */
@@ -130,16 +136,15 @@ extern const unsigned char rockchip_power_domain_tree_desc[];
 
 extern void *pmu_cpuson_entrypoint_start;
 extern void *pmu_cpuson_entrypoint_end;
-extern void *pmu_ddr_test_start;
-extern void *pmu_ddr_resume_satrt;
-extern void *pmu_ddr_resume_end;
-extern void *pmu_ddr_test_end;
 extern uint64_t cpuson_entry_point[PLATFORM_CORE_COUNT];
 extern uint32_t cpuson_flags[PLATFORM_CORE_COUNT];
 
 extern const mmap_region_t plat_rk_mmap[];
-#endif /* __ASSEMBLY__ */
 
+void rockchip_plat_sram_mmu_el3(void);
+void plat_rockchip_mem_prepare(void);
+
+#endif /* __ASSEMBLY__ */
 /******************************************************************************
  * cpu up status
  * The bits of macro value is not more than 12 bits for cmp instruction!
