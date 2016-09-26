@@ -142,6 +142,10 @@
 #define CRU_BASE			0xff760000
 #define CRU_SIZE			SIZE_K(64)
 
+#define SHARE_MEM_BASE		0x100000	/* [1MB, 1MB+60K]*/
+#define SHARE_MEM_PAGE_NUM	15
+#define SHARE_MEM_SIZE		SIZE_K(SHARE_MEM_PAGE_NUM * 4)
+
 #define COLD_BOOT_BASE		0xffff0000
 
 /**************************************************************************

@@ -32,16 +32,67 @@
 #define SIP_SVC_UID			0x8200ff01
 #define SIP_SVC_VERSION			0x8200ff03
 
-/* rockchip SiP Service Calls version numbers */
+/* Rockchip SiP Service Calls */
+#define RK_SIP_ATF_VERSION32		0x82000001
+#define RK_SIP_SUSPEND_MODE32		0x82000003
+#define RK_SIP_UARTDBG_CFG64		0xc2000005
+#define RK_SIP_ENABLE_FIQ		0xc2000007
+#define RK_SIP_DDR_CFG32		0x82000008
+#define RK_SIP_SHARE_MEM32		0x82000009
+#define RK_SIP_SIP_VERSION32		0x8200000a
+
+/* RK_SIP_SUSPEND_MODE32 child configs */
+#define SUSPEND_MODE_CONFIG		0x01
+#define WKUP_SOURCE_CONFIG		0x02
+#define PWM_REGULATOR_CONFIG		0x03
+#define GPIO_POWER_CONFIG		0x04
+
+/* Rockchip SiP Service Calls version numbers */
 #define RK_SIP_SVC_VERSION_MAJOR	0x0
 #define RK_SIP_SVC_VERSION_MINOR	0x1
 
 /* Number of ROCKCHIP SiP Calls implemented */
-#define RK_COMMON_SIP_NUM_CALLS		0x3
+#define RK_COMMON_SIP_NUM_CALLS		0x4
 
-enum {
-	RK_SIP_E_SUCCESS = 0,
-	RK_SIP_E_INVALID_PARAM = -1
+/* SiP Service Calls Error return code */
+#define SIP_RET_SUCCESS			0
+#define SIP_RET_NOT_SUPPORTED		-1
+#define SIP_RET_INVALID_PARAMS		-2
+#define SIP_RET_INVALID_ADDRESS		-3
+#define SIP_RET_DENIED			-4
+
+/* Sip version */
+#define SIP_IMPLEMENT_V1		(1)
+#define SIP_IMPLEMENT_V2		(2)
+
+/* Share mem page types */
+typedef enum {
+	SHARE_PAGE_TYPE_INVALID = 0,
+	SHARE_PAGE_TYPE_UARTDBG,
+	SHARE_PAGE_TYPE_MAX,
+} share_page_type_t;
+
+/* Return data */
+struct arm_smccc_res {
+	unsigned long a1;
+	unsigned long a2;
+	unsigned long a3;
 };
 
+/* SiP Service Calls */
+int atf_version_handler(struct arm_smccc_res *res);
+int sip_version_handler(struct arm_smccc_res *res);
+int suspend_mode_handler(uint64_t mode_id, uint64_t config1, uint64_t config2);
+int share_mem_type2page_base(share_page_type_t page_type, uint64_t *out_value);
+int share_mem_page_get_handler(uint64_t page_num, share_page_type_t page_type,
+			       struct arm_smccc_res *res);
+int ddr_smc_handler(uint64_t arg0, uint64_t arg1,
+		    uint64_t id, struct arm_smccc_res *res);
+int private_plat_sip_handler(uint32_t smc_fid,
+			     uint64_t x1,
+			     uint64_t x2,
+			     uint64_t x3,
+			     uint64_t x4,
+			     void *handle,
+			     struct arm_smccc_res *res);
 #endif

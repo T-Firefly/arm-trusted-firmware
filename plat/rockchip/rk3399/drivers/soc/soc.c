@@ -93,6 +93,8 @@ const mmap_region_t plat_rk_mmap[] = {
 			MT_DEVICE | MT_RW | MT_SECURE),
 	MAP_REGION_FLAT(GPIO1_BASE, GPIO1_SIZE,
 			MT_DEVICE | MT_RW | MT_SECURE),
+	MAP_REGION_FLAT(SHARE_MEM_BASE, SHARE_MEM_SIZE,
+			MT_DEVICE | MT_RW | MT_SECURE),
 	{ 0 }
 };
 

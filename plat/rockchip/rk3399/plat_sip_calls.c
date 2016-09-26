@@ -26,12 +26,11 @@
 
 #include <debug.h>
 #include <mmio.h>
-#include <plat_sip_calls.h>
+#include <psci.h>
 #include <rockchip_sip_svc.h>
 #include <runtime_svc.h>
 #include <dram.h>
 
-#define RK_SIP_DDR_CFG32	0x82000008
 #define CONFIG_DRAM_INIT	0x00
 #define CONFIG_DRAM_SET_RATE	0x01
 #define CONFIG_DRAM_ROUND_RATE	0x02
@@ -39,9 +38,10 @@
 #define CONFIG_DRAM_GET_BW	0x04
 #define CONFIG_DRAM_GET_RATE	0x05
 #define CONFIG_DRAM_CLR_IRQ	0x06
-#define CONFIG_DRAM_SET_PARAM   0x07
+#define CONFIG_DRAM_SET_PARAM	0x07
 
-uint64_t ddr_smc_handler(uint64_t arg0, uint64_t arg1, uint64_t id)
+int ddr_smc_handler(uint64_t arg0, uint64_t arg1,
+		    uint64_t id, struct arm_smccc_res *res)
 {
 	switch (id) {
 	case CONFIG_DRAM_INIT:
@@ -60,26 +60,10 @@ uint64_t ddr_smc_handler(uint64_t arg0, uint64_t arg1, uint64_t id)
 		dts_timing_receive(arg0, arg1);
 		break;
 	default:
+		return SIP_RET_INVALID_PARAMS;
 		break;
 	}
 
-	return 0;
+	return SIP_RET_SUCCESS;
 }
 
-uint64_t rockchip_plat_sip_handler(uint32_t smc_fid,
-				   uint64_t x1,
-				   uint64_t x2,
-				   uint64_t x3,
-				   uint64_t x4,
-				   void *cookie,
-				   void *handle,
-				   uint64_t flags)
-{
-	switch (smc_fid) {
-	case RK_SIP_DDR_CFG32:
-		SMC_RET1(handle, ddr_smc_handler(x1, x2, x3));
-	default:
-		ERROR("%s: unhandled SMC (0x%x)\n", __func__, smc_fid);
-		SMC_RET1(handle, SMC_UNK);
-	}
-}
