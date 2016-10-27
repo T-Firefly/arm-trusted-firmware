@@ -937,4 +937,13 @@ struct pmu_slpdata_s {
 extern uint32_t clst_warmboot_data[PLATFORM_CLUSTER_COUNT];
 void  (pmu_ddr_suspend)(void);
 void  (pmu_ddr_resume)(void);
+
+#define RKPM_SLP_WFI                            BIT(0)
+#define RKPM_SLP_ARMPD                          BIT(1)
+#define RKPM_SLP_PERILPPD                       BIT(2)
+#define RKPM_SLP_DDR_RET                        BIT(3)
+#define RKPM_SLP_PLLPD                          BIT(4)
+#define RKPM_SLP_OSC_DIS                        BIT(5)
+#define RKPM_SLP_CENTER_PD                      BIT(6)
+#define RKPM_SLP_AP_PWROFF                      BIT(7)
 #endif /* __PMU_H__ */

@@ -46,6 +46,7 @@
 #include <dmc.h>
 #include <console.h>
 #include <rk3399m0.h>
+#include <rockchip_sip_svc.h>
 
 DEFINE_BAKERY_LOCK(rockchip_pd_lock);
 
@@ -803,16 +804,113 @@ static int hlvl_pwr_domain_resume(uint32_t lvl, plat_local_state_t lvl_state)
 
 extern void sgrf_init(void);
 
-uint32_t pwm2_iomux;
+static uint32_t suspend_mode;
+static uint32_t wakeup_sources;
+static uint32_t pwm_regulators;
+static uint32_t pwm2_iomux;
+static uint32_t gpio_contrl0;
+static uint32_t gpio_contrl1;
+
 static void pwm_regulator_suspend(void)
 {
-	pwm2_iomux = mmio_read_32(PMUGRF_BASE + PMUGRF_GPIO1C_IOMUX);
-	mmio_write_32(PMUGRF_BASE + PMUGRF_GPIO1C_IOMUX, 0x00c00000);
+	if (pwm_regulators & BIT(2)) {
+		pwm2_iomux = mmio_read_32(PMUGRF_BASE + PMUGRF_GPIO1C_IOMUX);
+		mmio_write_32(PMUGRF_BASE + PMUGRF_GPIO1C_IOMUX, 0x00c00000);
+	}
 }
+
 static void pwm_regulator_resume(void)
 {
-	mmio_write_32(PMUGRF_BASE + PMUGRF_GPIO1C_IOMUX,
-		      0x00c00000 | pwm2_iomux);
+	if (pwm_regulators & BIT(2))
+		mmio_write_32(PMUGRF_BASE + PMUGRF_GPIO1C_IOMUX,
+			      0x00c00000 | pwm2_iomux);
+}
+
+static void gpio_power_resume(void)
+{
+	uint32_t gpio0_dr, gpio0_ddr;
+	uint32_t gpio1_dr, gpio1_ddr;
+
+	mmio_write_32(PMUGRF_BASE + 0x014, 0x30000000);
+	mmio_write_32(PMUGRF_BASE + 0x018, 0x000c0000);
+
+	if (gpio_contrl1 != 0) {
+		if (gpio_contrl1 >> 5) {
+			gpio1_dr = mmio_read_32(GPIO1_BASE);
+			gpio1_ddr = mmio_read_32(GPIO1_BASE + 0x04);
+			mmio_write_32(GPIO1_BASE,
+				      gpio1_dr | BIT(gpio_contrl1 & 0x1f));
+			mmio_write_32(GPIO1_BASE + 0x04,
+				      gpio1_ddr | BIT(gpio_contrl1 & 0x1f));
+		} else {
+			gpio0_dr = mmio_read_32(GPIO0_BASE);
+			gpio0_ddr = mmio_read_32(GPIO0_BASE + 0x04);
+			mmio_write_32(GPIO0_BASE,
+				      gpio0_dr | BIT(gpio_contrl1 & 0x1f));
+			mmio_write_32(GPIO0_BASE + 0x04,
+				      gpio0_ddr | BIT(gpio_contrl1 & 0x1f));
+		}
+	}
+
+	if (gpio_contrl0 != 0) {
+		if (gpio_contrl0 >> 5) {
+			gpio1_dr = mmio_read_32(GPIO1_BASE);
+			gpio1_ddr = mmio_read_32(GPIO1_BASE + 0x04);
+			mmio_write_32(GPIO1_BASE,
+				      gpio1_dr & (~(BIT(gpio_contrl0 & 0x1f))));
+			mmio_write_32(GPIO1_BASE + 0x04,
+				      gpio1_ddr & (~(BIT(gpio_contrl0 & 0x1f))));
+		} else {
+			gpio0_dr = mmio_read_32(GPIO0_BASE);
+			gpio0_ddr = mmio_read_32(GPIO0_BASE + 0x04);
+			mmio_write_32(GPIO0_BASE,
+				      gpio0_dr & (~(BIT(gpio_contrl0 & 0x1f))));
+			mmio_write_32(GPIO0_BASE + 0x04,
+				      gpio0_ddr & (~(BIT(gpio_contrl0 & 0x1f))));
+		}
+	}
+}
+
+static void gpio_power_suspend(void)
+{
+	uint32_t gpio0_dr, gpio0_ddr;
+	uint32_t gpio1_dr, gpio1_ddr;
+
+	if (gpio_contrl1 != 0) {
+		if (gpio_contrl1 >> 5) {
+			gpio1_dr = mmio_read_32(GPIO1_BASE);
+			gpio1_ddr = mmio_read_32(GPIO1_BASE + 0x04);
+			mmio_write_32(GPIO1_BASE,
+				      gpio1_dr | BIT(gpio_contrl1 & 0x1f));
+			mmio_write_32(GPIO1_BASE + 0x04,
+				      gpio1_ddr | BIT(gpio_contrl1 & 0x1f));
+		} else {
+			gpio0_dr = mmio_read_32(GPIO0_BASE);
+			gpio0_ddr = mmio_read_32(GPIO0_BASE + 0x04);
+			mmio_write_32(GPIO0_BASE,
+				      gpio0_dr | BIT(gpio_contrl1 & 0x1f));
+			mmio_write_32(GPIO0_BASE + 0x04,
+				      gpio0_ddr | BIT(gpio_contrl1 & 0x1f));
+		}
+	}
+
+	if (gpio_contrl0 != 0) {
+		if (gpio_contrl0 >> 5) {
+			gpio1_dr = mmio_read_32(GPIO1_BASE);
+			gpio1_ddr = mmio_read_32(GPIO1_BASE + 0x04);
+			mmio_write_32(GPIO1_BASE,
+				      gpio1_dr | BIT(gpio_contrl0 & 0x1f));
+			mmio_write_32(GPIO1_BASE + 0x04,
+				      gpio1_ddr | BIT(gpio_contrl0 & 0x1f));
+		} else {
+			gpio0_dr = mmio_read_32(GPIO0_BASE);
+			gpio0_ddr = mmio_read_32(GPIO0_BASE + 0x04);
+			mmio_write_32(GPIO0_BASE,
+				      gpio0_dr | BIT(gpio_contrl0 & 0x1f));
+			mmio_write_32(GPIO0_BASE + 0x04,
+				      gpio0_ddr | BIT(gpio_contrl0 & 0x1f));
+		}
+	}
 }
 
 static void pvtm_32k_enable(void)
@@ -841,15 +939,145 @@ uint32_t debug_iomux;
 uint32_t interrupt_debug = 1;
 uint32_t debug_ddr_suspend;
 uint32_t pll_suspend_enable;
+
 #define PVTM_ENABLE		0
 #define CLK_DDRC_APLL_B_EN	0x00020000
 
 extern void ddr_switch_index_to_f0(void);
 
-static void sys_slp_config(void)
+int suspend_mode_handler(uint64_t mode_id, uint64_t config1, uint64_t config2)
+{
+	switch (mode_id) {
+	case SUSPEND_MODE_CONFIG:
+		suspend_mode = config1;
+		return 0;
+
+	case WKUP_SOURCE_CONFIG:
+		wakeup_sources = config1;
+		return 0;
+
+	case PWM_REGULATOR_CONFIG:
+		pwm_regulators = config1;
+		return 0;
+
+	case GPIO_POWER_CONFIG:
+		gpio_contrl0 = config1;
+		gpio_contrl1 = config2;
+		return 0;
+	default:
+		ERROR("%s: unhandled sip (0x%lx)\n", __func__, mode_id);
+		return -1;
+	}
+}
+
+static void set_slp_mode(void)
 {
 	uint32_t slp_mode_cfg = 0;
 
+	slp_mode_cfg |= BIT(PMU_PWR_MODE_EN);
+
+	if (suspend_mode != 0) {
+		if (suspend_mode & RKPM_SLP_AP_PWROFF)
+			slp_mode_cfg |= BIT(PMU_POWER_OFF_REQ_CFG);
+
+		if (suspend_mode & RKPM_SLP_ARMPD)
+			slp_mode_cfg |= BIT(PMU_CPU0_PD_EN) |
+					BIT(PMU_L2_FLUSH_EN) |
+					BIT(PMU_L2_IDLE_EN) |
+					BIT(PMU_SCU_PD_EN) |
+					BIT(PMU_CCI_PD_EN) |
+					BIT(PMU_CLK_CORE_SRC_GATE_EN);
+
+		if (suspend_mode & RKPM_SLP_DDR_RET)
+			slp_mode_cfg |= BIT(PMU_SREF0_ENTER_EN) |
+					BIT(PMU_SREF1_ENTER_EN) |
+					BIT(PMU_DDRC0_GATING_EN) |
+					BIT(PMU_DDRC1_GATING_EN) |
+					BIT(PMU_DDRIO0_RET_EN) |
+					BIT(PMU_DDRIO1_RET_EN) |
+					BIT(PMU_DDRIO_RET_HW_DE_REQ);
+
+		if (suspend_mode & RKPM_SLP_CENTER_PD)
+			slp_mode_cfg |= BIT(PMU_CENTER_PD_EN) |
+					BIT(PMU_CLK_CENTER_SRC_GATE_EN);
+
+		if (suspend_mode & RKPM_SLP_PLLPD)
+			slp_mode_cfg |= BIT(PMU_PLL_PD_EN);
+
+		if (suspend_mode & RKPM_SLP_OSC_DIS)
+			slp_mode_cfg |= BIT(PMU_OSC_DIS) |
+					BIT(PMU_PMU_USE_LF) |
+					BIT(PMU_ALIVE_USE_LF);
+	} else {
+
+		slp_mode_cfg = BIT(PMU_PWR_MODE_EN) |
+				   BIT(PMU_POWER_OFF_REQ_CFG) |
+				   BIT(PMU_CPU0_PD_EN) |
+				   BIT(PMU_L2_FLUSH_EN) |
+				   BIT(PMU_L2_IDLE_EN) |
+				   BIT(PMU_SCU_PD_EN) |
+				   BIT(PMU_CCI_PD_EN) |
+				   BIT(PMU_CLK_CORE_SRC_GATE_EN) |
+				   BIT(PMU_ALIVE_USE_LF) |
+				   BIT(PMU_SREF0_ENTER_EN) |
+				   BIT(PMU_SREF1_ENTER_EN) |
+				   BIT(PMU_DDRC0_GATING_EN) |
+				   BIT(PMU_DDRC1_GATING_EN) |
+				   BIT(PMU_DDRIO0_RET_EN) |
+				   BIT(PMU_DDRIO1_RET_EN) |
+				   BIT(PMU_DDRIO_RET_HW_DE_REQ) |
+				   BIT(PMU_CENTER_PD_EN) |
+				   BIT(PMU_PLL_PD_EN) |
+				   BIT(PMU_CLK_CENTER_SRC_GATE_EN) |
+				   BIT(PMU_OSC_DIS) |
+				   BIT(PMU_PMU_USE_LF);
+	}
+	mmio_write_32(PMU_BASE + PMU_PWRMODE_CON, slp_mode_cfg);
+
+	if (wakeup_sources != 0)
+		mmio_write_32(PMU_BASE + PMU_WKUP_CFG4, wakeup_sources);
+	else {
+		mmio_setbits_32(PMU_BASE + PMU_WKUP_CFG4,
+				BIT(PMU_PWM_WKUP_EN));
+		mmio_setbits_32(PMU_BASE + PMU_WKUP_CFG4,
+				BIT(PMU_GPIO_WKUP_EN));
+	}
+
+	mmio_write_32(PMU_BASE + PMU_SCU_L_PWRDN_CNT,
+		      CYCL_32K_CNT_MS(1));
+	mmio_write_32(PMU_BASE + PMU_SCU_L_PWRUP_CNT,
+		      CYCL_32K_CNT_MS(1));
+	mmio_write_32(PMU_BASE + PMU_SCU_B_PWRDN_CNT,
+		      CYCL_32K_CNT_MS(1));
+	mmio_write_32(PMU_BASE + PMU_SCU_B_PWRUP_CNT,
+		      CYCL_32K_CNT_MS(1));
+	mmio_write_32(PMU_BASE + PMU_CENTER_PWRDN_CNT,
+		      CYCL_32K_CNT_MS(1));
+	mmio_write_32(PMU_BASE + PMU_CENTER_PWRUP_CNT,
+		      CYCL_32K_CNT_MS(1));
+	mmio_write_32(PMU_BASE + PMU_WAKEUP_RST_CLR_CNT,
+		      CYCL_32K_CNT_MS(1));
+	mmio_write_32(PMU_BASE + PMU_OSC_CNT, CYCL_32K_CNT_MS(5));
+	mmio_write_32(PMU_BASE + PMU_DDRIO_PWRON_CNT,
+		      CYCL_32K_CNT_MS(2));
+	mmio_write_32(PMU_BASE + PMU_PLLLOCK_CNT, CYCL_32K_CNT_MS(1));
+	mmio_write_32(PMU_BASE + PMU_PLLRST_CNT, CYCL_32K_CNT_MS(1));
+	mmio_write_32(PMU_BASE + PMU_STABLE_CNT, CYCL_32K_CNT_MS(4));
+
+	mmio_write_32(PMU_BASE + PMU_PLL_CON, PLL_PD_HW);
+	mmio_write_32(PMUGRF_BASE + 0x120, 0x00030001);
+#if PVTM_ENABLE
+	pvtm_32k_enable();
+#else
+	if (0)
+		pvtm_32k_enable();
+	mmio_write_32(PMUGRF_BASE + PMUGRF_SOC_CON0, EXTERNAL_32K);
+	mmio_write_32(PMUGRF_BASE, IOMUX_CLK_32K); /*32k iomux*/
+#endif
+
+}
+static void sys_slp_config(void)
+{
 	INFO("the debug info:\n");
 	INFO("CENTER_PD: %d\n", center_pd_enable);
 	INFO("PMU DEBUG: %d\n", pmu_debug_enable);
@@ -885,55 +1113,8 @@ static void sys_slp_config(void)
 	mmio_write_32(PMUGRF_BASE + PMUGRF_GPIO1A_IOMUX,
 		      BIT_WITH_WMSK(AP_PWROFF));
 
-	slp_mode_cfg = BIT(PMU_PWR_MODE_EN) |
-		       BIT(PMU_POWER_OFF_REQ_CFG) |
-		       BIT(PMU_CPU0_PD_EN) |
-		       BIT(PMU_L2_FLUSH_EN) |
-		       BIT(PMU_L2_IDLE_EN) |
-		       BIT(PMU_SCU_PD_EN) |
-		       BIT(PMU_CCI_PD_EN) |
-		       BIT(PMU_CLK_CORE_SRC_GATE_EN) |
-		       BIT(PMU_ALIVE_USE_LF) |
-		       BIT(PMU_SREF0_ENTER_EN) |
-		       BIT(PMU_SREF1_ENTER_EN) |
-		       BIT(PMU_DDRC0_GATING_EN) |
-		       BIT(PMU_DDRC1_GATING_EN) |
-		       BIT(PMU_DDRIO0_RET_EN) |
-		       BIT(PMU_DDRIO1_RET_EN) |
-		       BIT(PMU_DDRIO_RET_HW_DE_REQ) |
-		       BIT(PMU_CENTER_PD_EN) |
-		       BIT(PMU_PLL_PD_EN) |
-		       BIT(PMU_CLK_CENTER_SRC_GATE_EN) |
-		       BIT(PMU_OSC_DIS) |
-		       BIT(PMU_PMU_USE_LF);
+	set_slp_mode();
 
-	mmio_setbits_32(PMU_BASE + PMU_WKUP_CFG4, BIT(PMU_PWM_WKUP_EN));
-	mmio_setbits_32(PMU_BASE + PMU_WKUP_CFG4, BIT(PMU_GPIO_WKUP_EN));
-	mmio_write_32(PMU_BASE + PMU_PWRMODE_CON, slp_mode_cfg);
-
-	mmio_write_32(PMU_BASE + PMU_SCU_L_PWRDN_CNT, CYCL_32K_CNT_MS(1));
-	mmio_write_32(PMU_BASE + PMU_SCU_L_PWRUP_CNT, CYCL_32K_CNT_MS(1));
-	mmio_write_32(PMU_BASE + PMU_SCU_B_PWRDN_CNT, CYCL_32K_CNT_MS(1));
-	mmio_write_32(PMU_BASE + PMU_SCU_B_PWRUP_CNT, CYCL_32K_CNT_MS(1));
-	mmio_write_32(PMU_BASE + PMU_CENTER_PWRDN_CNT, CYCL_32K_CNT_MS(1));
-	mmio_write_32(PMU_BASE + PMU_CENTER_PWRUP_CNT, CYCL_32K_CNT_MS(1));
-	mmio_write_32(PMU_BASE + PMU_WAKEUP_RST_CLR_CNT, CYCL_32K_CNT_MS(1));
-	mmio_write_32(PMU_BASE + PMU_OSC_CNT, CYCL_32K_CNT_MS(5));
-	mmio_write_32(PMU_BASE + PMU_DDRIO_PWRON_CNT, CYCL_32K_CNT_MS(2));
-	mmio_write_32(PMU_BASE + PMU_PLLLOCK_CNT, CYCL_32K_CNT_MS(1));
-	mmio_write_32(PMU_BASE + PMU_PLLRST_CNT, CYCL_32K_CNT_MS(1));
-	mmio_write_32(PMU_BASE + PMU_STABLE_CNT, CYCL_32K_CNT_MS(4));
-
-	mmio_write_32(PMU_BASE + PMU_PLL_CON, PLL_PD_HW);
-	mmio_write_32(PMUGRF_BASE + 0x120, 0x00030001);
-#if PVTM_ENABLE
-	pvtm_32k_enable();
-#else
-	if (0)
-		pvtm_32k_enable();
-	mmio_write_32(PMUGRF_BASE + PMUGRF_SOC_CON0, EXTERNAL_32K);
-	mmio_write_32(PMUGRF_BASE, IOMUX_CLK_32K); /*32k iomux*/
-#endif
 }
 static void sys_slp_unconfig(void)
 {
@@ -1041,6 +1222,7 @@ static int sys_pwr_domain_suspend(void)
 		skip_suspend = 1;
 	}
 
+	gpio_power_suspend();
 	m0_clock_init();
 	INFO("suspend end\n");
 	return 0;
@@ -1089,6 +1271,7 @@ static int sys_pwr_domain_resume(void)
 	uint32_t status = 0;
 
 	debug_ddr_suspend = 0;
+	gpio_power_resume();
 	pwm_regulator_resume();
 	secure_timer_init();
 	console_init(PLAT_RK_UART_BASE, PLAT_RK_UART_CLOCK,
