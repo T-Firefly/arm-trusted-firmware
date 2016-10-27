@@ -30,6 +30,10 @@
 #include <rockchip_sip_svc.h>
 #include <runtime_svc.h>
 #include <dram.h>
+#include <plat_private.h>
+#include <plat_sip_calls.h>
+#include <arch_helpers.h>
+#include <platform.h>
 
 #define CONFIG_DRAM_INIT	0x00
 #define CONFIG_DRAM_SET_RATE	0x01
@@ -61,9 +65,63 @@ int ddr_smc_handler(uint64_t arg0, uint64_t arg1,
 		break;
 	default:
 		return SIP_RET_INVALID_PARAMS;
-		break;
 	}
 
 	return SIP_RET_SUCCESS;
 }
 
+#pragma weak fiq_debugger_smc_handler
+#pragma weak fiq_disable_flag
+#pragma weak fiq_enable_flag
+#pragma weak get_uart_irq_id
+
+void fiq_disable_flag(uint32_t cpu_id)
+{
+}
+
+void fiq_enable_flag(uint32_t cpu_id)
+{
+}
+
+uint32_t get_uart_irq_id(void)
+{
+	return 0;
+}
+uint64_t fiq_debugger_smc_handler(uint64_t fun_id, void *handle,
+				  uint64_t arg0, uint64_t arg1)
+{
+	ERROR("%s: unhandled SMC (0x%lx)\n", __func__, fun_id);
+	SMC_RET1(handle, SMC_UNK);
+}
+
+int private_plat_sip_handler(uint32_t smc_fid,
+			     uint64_t x1,
+			     uint64_t x2,
+			     uint64_t x3,
+			     uint64_t x4,
+				 void *handle,
+			     struct arm_smccc_res *res)
+{
+	uint32_t cpu_id;
+	uint32_t interrupt_id;
+
+	switch (smc_fid) {
+	case RK_SIP_ENABLE_FIQ:
+		interrupt_id = get_uart_irq_id();
+		if (!interrupt_id) {
+			INFO("the uart irq id is error!\n");
+			return 0;
+		}
+		cpu_id = plat_my_core_pos();
+		fiq_enable_flag(cpu_id);
+		plat_rockchip_gic_fiq_enable(interrupt_id, 0);
+			return 0;
+
+	case RK_SIP_UARTDBG_CFG64:
+		return fiq_debugger_smc_handler(x3, handle, x1, x2);
+
+	default:
+		ERROR("%s: unhandled SMC (0x%x)\n", __func__, smc_fid);
+		SMC_RET1(handle, SMC_UNK);
+	}
+}

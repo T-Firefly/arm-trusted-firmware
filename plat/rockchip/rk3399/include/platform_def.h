@@ -104,6 +104,8 @@
 #define BL31_BASE		(TZRAM_BASE + 0x10000)
 #define BL31_LIMIT	(TZRAM_BASE + TZRAM_SIZE)
 
+#define TFW_DATA_FIQ_BASE (TZRAM_BASE + 0x3000)
+#define TFW_DATA_FIQ_SIZE SIZE_K(8)
 /*******************************************************************************
  * Platform specific page table and MMU setup constants
  ******************************************************************************/

@@ -70,6 +70,12 @@ __attribute__ ((section("tzfw_coherent_mem")))
 #endif
 ;/* coheront */
 
+#pragma weak rk_register_handler
+
+void rk_register_handler(void)
+{
+}
+
 static void pmu_bus_idle_req(uint32_t bus, uint32_t idle)
 {
 	uint32_t bus_id = BIT(bus);
@@ -402,8 +408,6 @@ static void pmu_power_domains_suspend(void)
 	pmu_set_power_domain(PD_ISP0, pmu_pd_off);
 	pmu_set_power_domain(PD_ISP1, pmu_pd_off);
 	pmu_set_power_domain(PD_HDCP, pmu_pd_off);
-	pmu_set_power_domain(PD_SDIOAUDIO, pmu_pd_off);
-	pmu_set_power_domain(PD_GMAC, pmu_pd_off);
 	pmu_set_power_domain(PD_EDP, pmu_pd_off);
 	pmu_set_power_domain(PD_IEP, pmu_pd_off);
 	pmu_set_power_domain(PD_RGA, pmu_pd_off);
@@ -428,8 +432,6 @@ static void pmu_power_domains_resume(void)
 		pmu_set_power_domain(PD_EDP, pmu_pd_on);
 	if (!(pmu_powerdomain_state & BIT(PD_GMAC)))
 		pmu_set_power_domain(PD_GMAC, pmu_pd_on);
-	if (!(pmu_powerdomain_state & BIT(PD_SDIOAUDIO)))
-		pmu_set_power_domain(PD_SDIOAUDIO, pmu_pd_on);
 	if (!(pmu_powerdomain_state & BIT(PD_HDCP)))
 		pmu_set_power_domain(PD_HDCP, pmu_pd_on);
 	if (!(pmu_powerdomain_state & BIT(PD_ISP1)))
@@ -1197,6 +1199,8 @@ void plat_rockchip_pmu_init(void)
 	mmio_write_32(PMU_BASE + PMU_NOC_AUTO_ENA, NOC_AUTO_ENABLE);
 
 	nonboot_cpus_off();
+
+	rk_register_handler();
 
 	INFO("%s(%d): pd status %x\n", __func__, __LINE__,
 	     mmio_read_32(PMU_BASE + PMU_PWRDN_ST));

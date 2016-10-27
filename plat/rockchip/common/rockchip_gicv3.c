@@ -32,6 +32,8 @@
 #include <gicv3.h>
 #include <platform.h>
 #include <platform_def.h>
+#include <gic_common_private.h>
+#include <plat_private.h>
 
 /******************************************************************************
  * The following functions are defined as weak to allow a platform to override
@@ -42,6 +44,10 @@
 #pragma weak plat_rockchip_gic_cpuif_enable
 #pragma weak plat_rockchip_gic_cpuif_disable
 #pragma weak plat_rockchip_gic_pcpu_init
+#pragma weak plat_rockchip_gic_fiq_enable
+#pragma weak plat_rockchip_gic_fiq_disable
+#pragma weak plat_rockchip_gic_set_itargetsr
+
 
 /* The GICv3 driver only needs to be initialized in EL3 */
 uintptr_t rdistif_base_addrs[PLATFORM_CORE_COUNT];
@@ -120,4 +126,33 @@ void plat_rockchip_gic_cpuif_disable(void)
 void plat_rockchip_gic_pcpu_init(void)
 {
 	gicv3_rdistif_init(plat_my_core_pos());
+}
+
+static void gicd_set_itargetsr(uintptr_t base,
+			       unsigned int id,
+			       unsigned int target)
+{
+	mmio_write_8(base + GICD_ITARGETSR + id, target & GIC_TARGET_CPU_MASK);
+}
+
+void plat_rockchip_gic_fiq_enable(uint32_t irq, uint8_t target_cpu)
+{
+	if (irq >= MIN_SPI_ID) {
+		/* We have an SPI */
+		gicd_clr_igroupr(PLAT_RK_GICD_BASE, irq);
+		gicd_set_ipriorityr(PLAT_RK_GICD_BASE, irq,
+				    GIC_HIGHEST_SEC_PRIORITY);
+		gicd_set_itargetsr(PLAT_RK_GICD_BASE, irq, target_cpu);
+		gicd_set_isenabler(PLAT_RK_GICD_BASE, irq);
+	}
+}
+
+void plat_rockchip_gic_fiq_disable(uint32_t irq)
+{
+	gicd_set_icenabler(PLAT_RK_GICD_BASE, irq);
+}
+
+void plat_rockchip_gic_set_itargetsr(uint8_t irq, uint8_t target_cpu)
+{
+	gicd_set_itargetsr(PLAT_RK_GICD_BASE, irq, target_cpu);
 }

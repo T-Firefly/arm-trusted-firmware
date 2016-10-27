@@ -123,6 +123,9 @@ void plat_rockchip_gic_init(void);
 void plat_rockchip_gic_cpuif_enable(void);
 void plat_rockchip_gic_cpuif_disable(void);
 void plat_rockchip_gic_pcpu_init(void);
+void plat_rockchip_gic_fiq_disable(uint32_t irq);
+void plat_rockchip_gic_fiq_enable(uint32_t irq, uint8_t target_cpu);
+void plat_rockchip_gic_set_itargetsr(uint8_t irq, uint8_t target_cpu);
 
 void plat_rockchip_pmusram_prepare(void);
 void plat_rockchip_pmu_init(void);
@@ -153,4 +156,6 @@ void plat_rockchip_mem_prepare(void);
 #define PMU_CPU_AUTO_PWRDN	0xf0
 #define PMU_CLST_RET	0xa5
 
+#define GIC_TARGET_CPU_MASK	0x3f
+#define GICD_ITARGETSR		0x800
 #endif /* __PLAT_PRIVATE_H__ */

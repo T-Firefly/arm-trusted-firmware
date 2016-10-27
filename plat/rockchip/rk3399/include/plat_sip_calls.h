@@ -27,6 +27,6 @@
 #ifndef __PLAT_SIP_CALLS_H__
 #define __PLAT_SIP_CALLS_H__
 
-#define RK_PLAT_SIP_NUM_CALLS	0
+#define RK_PLAT_SIP_NUM_CALLS	4
 
 #endif /* __PLAT_SIP_CALLS_H__ */

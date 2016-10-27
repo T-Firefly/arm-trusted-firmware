@@ -95,6 +95,8 @@ const mmap_region_t plat_rk_mmap[] = {
 			MT_DEVICE | MT_RW | MT_SECURE),
 	MAP_REGION_FLAT(SHARE_MEM_BASE, SHARE_MEM_SIZE,
 			MT_DEVICE | MT_RW | MT_SECURE),
+	MAP_REGION_FLAT(TFW_DATA_FIQ_BASE, TFW_DATA_FIQ_SIZE,
+			MT_MEMORY | MT_RW | MT_SECURE),
 	{ 0 }
 };
 
@@ -247,20 +249,6 @@ static void dma_secure_cfg(uint32_t secure)
 /* pll suspend */
 struct deepsleep_data_s slp_data;
 
-static void pll_suspend_prepare(uint32_t pll_id)
-{
-	int i;
-
-	if (pll_id == PPLL_ID)
-		for (i = 0; i < PLL_CON_COUNT; i++)
-			slp_data.plls_con[pll_id][i] =
-				mmio_read_32(PMUCRU_BASE + PMUCRU_PPLL_CON(i));
-	else
-		for (i = 0; i < PLL_CON_COUNT; i++)
-			slp_data.plls_con[pll_id][i] =
-				mmio_read_32(CRU_BASE + CRU_PLL_CON(pll_id, i));
-}
-
 static void set_pll_slow_mode(uint32_t pll_id)
 {
 	if (pll_id == PPLL_ID)
@@ -357,20 +345,6 @@ void restore_abpll(void)
 }
 void plls_suspend(void)
 {
-	uint32_t i, pll_id;
-
-	for (pll_id = ALPLL_ID; pll_id < END_PLL_ID; pll_id++)
-		pll_suspend_prepare(pll_id);
-
-	for (i = 0; i < CRU_CLKSEL_COUNT; i++)
-		slp_data.cru_clksel_con[i] =
-			mmio_read_32(CRU_BASE + CRU_CLKSEL_CON(i));
-
-	for (i = 0; i < PMUCRU_CLKSEL_CONUT; i++)
-		slp_data.pmucru_clksel_con[i] =
-			mmio_read_32(PMUCRU_BASE +
-				     PMUCRU_CLKSEL_OFFSET + i * REG_SIZE);
-
 	_pll_suspend(CPLL_ID);
 	_pll_suspend(NPLL_ID);
 	_pll_suspend(VPLL_ID);
@@ -427,24 +401,9 @@ static void set_plls_nobypass(uint32_t pll_id)
 			      PLL_NO_BYPASS_MODE);
 }
 
-static void plls_resume_prepare(void)
-{
-	int i;
-
-	for (i = 0; i < CRU_CLKSEL_COUNT; i++)
-		mmio_write_32((CRU_BASE + CRU_CLKSEL_CON(i)),
-			      REG_SOC_WMSK | slp_data.cru_clksel_con[i]);
-	for (i = 0; i < PMUCRU_CLKSEL_CONUT; i++)
-		mmio_write_32((PMUCRU_BASE +
-			      PMUCRU_CLKSEL_OFFSET + i * REG_SIZE),
-			      REG_SOC_WMSK | slp_data.pmucru_clksel_con[i]);
-}
-
 void plls_resume(void)
 {
 	int pll_id;
-
-	plls_resume_prepare();
 
 	set_pll_normal_mode(PPLL_ID);
 	for (pll_id = ALPLL_ID; pll_id < END_PLL_ID; pll_id++) {
