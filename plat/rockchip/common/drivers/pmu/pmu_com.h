@@ -98,25 +98,25 @@ static int check_cpu_wfie(uint32_t cpu_id, uint32_t wfie_msk)
 {
 	uint32_t cluster_id, loop = 0;
 
-	if (cpu_id >= PLATFORM_CLUSTER0_CORE_COUNT) {
+	if (cpu_id < PLATFORM_CLUSTER0_CORE_COUNT) {
+		cluster_id = 0;
+	} else {
 		cluster_id = 1;
 		cpu_id -= PLATFORM_CLUSTER0_CORE_COUNT;
-	} else {
-		cluster_id = 0;
 	}
 
-	if (cluster_id)
-		wfie_msk <<= (clstb_cpu_wfe + cpu_id);
-	else
+	if (!cluster_id)
 		wfie_msk <<= (clstl_cpu_wfe + cpu_id);
+	else
+		wfie_msk <<= (clstb_cpu_wfe + cpu_id);
 
-	while (!(mmio_read_32(PMU_BASE + PMU_CORE_PWR_ST) & wfie_msk) &&
+	while (!(mmio_read_32(CHECK_CPU_WFIE_BASE) & wfie_msk) &&
 	       (loop < CHK_CPU_LOOP)) {
 		udelay(1);
 		loop++;
 	}
 
-	if ((mmio_read_32(PMU_BASE + PMU_CORE_PWR_ST) & wfie_msk) == 0) {
+	if ((mmio_read_32(CHECK_CPU_WFIE_BASE) & wfie_msk) == 0) {
 		WARN("%s: %d, %d, %d, error!\n", __func__,
 		     cluster_id, cpu_id, wfie_msk);
 		return -EINVAL;

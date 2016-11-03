@@ -854,6 +854,8 @@ enum pmu_core_pwr_st {
 #define CPU_AXI_PERILP_NSP_QOS_BASE	0xffad8180
 #define CPU_AXI_PERILPSLV_NSP_QOS_BASE	0xffad8100
 
+#define CHECK_CPU_WFIE_BASE	(PMU_BASE + PMU_CORE_PWR_ST)
+
 #define PMUGRF_GPIO1A_IOMUX	0x10
 #define AP_PWROFF		0x0a
 #define CORES_PM_DISABLE	0x0
