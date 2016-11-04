@@ -1185,7 +1185,7 @@ void plat_rockchip_pmu_init(void)
 		clst_warmboot_data[cpu] = 0;
 
 	psram_sleep_cfg->ddr_func = (uint64_t)dmc_restore;
-	psram_sleep_cfg->ddr_data = (uint64_t)&sdram_configs[0];
+	psram_sleep_cfg->ddr_data = (uint64_t)&sdram_config;
 	if (center_pd_enable)
 		psram_sleep_cfg->ddr_flag = 0x01;
 	else

@@ -31,31 +31,18 @@
 #ifndef __DMC_H__
 #define __DMC_H__
 
-typedef uint32_t u32;
+#include <mmio.h>
+#include <rk3399_def.h>
+#include <soc.h>
 
 #define KHz (1000)
-#define MHz (1000*KHz)
-#define GHz (1000*MHz)
-
-#define readl_relaxed(addr)                     \
-        (*(volatile u32 *)(addr))
-#define writel_relaxed(data, addr)              \
-        (*(volatile u32 *)(addr) = data)
-#define clrbits_le32(addr, clear)               \
-        writel_relaxed((readl_relaxed(addr)&~(clear))|(0), addr)
-#define setbits_le32(addr, set)                 \
-        writel_relaxed((readl_relaxed(addr)&~(0))|(set), addr)
-#define clrsetbits_le32(addr, clear, set)       \
-        writel_relaxed((readl_relaxed(addr)&~(clear))|(set), addr)
-
-#define read32(addr) readl_relaxed(addr)
-#define write32(addr, val) writel_relaxed(val, addr)
-
+#define MHz (1000 * KHz)
+#define GHz (1000 * MHz)
 
 #define DDRC0_BASE_ADDR			0xFFA80000
 #define DDRC1_BASE_ADDR			0xFFA88000
-#define SERVER_MSCH0_BASE_ADDR	0xFFA84000
-#define SERVER_MSCH1_BASE_ADDR	0xFFA8C000
+#define SERVER_MSCH0_BASE_ADDR		0xFFA84000
+#define SERVER_MSCH1_BASE_ADDR		0xFFA8C000
 
 #define DDR_PI_OFFSET			0x800
 #define DDR_PHY_OFFSET			0x2000
@@ -66,14 +53,6 @@ typedef uint32_t u32;
 #define DDRC1_PI_BASE_ADDR		(DDRC1_BASE_ADDR + DDR_PI_OFFSET)
 #define DDRC1_PHY_BASE_ADDR		(DDRC1_BASE_ADDR + DDR_PHY_OFFSET)
 
-/*
-enum {
-	DDR3 = 3,
-	LPDDR3 = 6,
-	UNUSED = 0xFF,
-};
-*/
-
 enum {
 	DDR3 = 3,
 	LPDDR2 = 5,
@@ -83,32 +62,31 @@ enum {
 };
 
 struct rk3399_ddr_cic_regs {
-	u32 cic_ctrl0;
-	u32 cic_ctrl1;
-	u32 cic_idle_th;
-	u32 cic_cg_wait_th;
-	u32 cic_status0;
-	u32 cic_status1;
-	u32 cic_ctrl2;
-	u32 cic_ctrl3;
-	u32 cic_ctrl4;
+	uint32_t cic_ctrl0;
+	uint32_t cic_ctrl1;
+	uint32_t cic_idle_th;
+	uint32_t cic_cg_wait_th;
+	uint32_t cic_status0;
+	uint32_t cic_status1;
+	uint32_t cic_ctrl2;
+	uint32_t cic_ctrl3;
+	uint32_t cic_ctrl4;
 };
 
 struct rk3399_ddr_pctl_regs {
-	u32 denali_ctl[332];
+	uint32_t denali_ctl[332];
 };
-//check_member(rk3399_ddr_pctl_regs, denali_ctl[324], 0x0510);
 
 struct rk3399_ddr_publ_regs {
-	u32 denali_phy[541];
+	uint32_t denali_phy[541];
 };
-//check_member(rk3399_ddr_publ_regs, denali_phy[958], 0x0ef8);
 
 struct rk3399_ddr_pi_regs {
-	u32 denali_pi[200];
+	uint32_t denali_pi[200];
 };
+
 union noc_ddrtiminga0 {
-	u32 d32;
+	uint32_t d32;
 	struct {
 		unsigned acttoact : 6;
 		unsigned reserved0 : 2;
@@ -121,7 +99,7 @@ union noc_ddrtiminga0 {
 };
 
 union noc_ddrtimingb0 {
-	u32 d32;
+	uint32_t d32;
 	struct {
 		unsigned rdtowr : 5;
 		unsigned reserved0 : 3;
@@ -135,7 +113,7 @@ union noc_ddrtimingb0 {
 };
 
 union noc_ddrtimingc0 {
-	u32 d32;
+	uint32_t d32;
 	struct {
 		unsigned burstpenalty : 4;
 		unsigned reserved0 : 4;
@@ -145,7 +123,7 @@ union noc_ddrtimingc0 {
 };
 
 union noc_devtodev0 {
-	u32 d32;
+	uint32_t d32;
 	struct {
 		unsigned busrdtord : 3;
 		unsigned reserved0 : 1;
@@ -159,7 +137,7 @@ union noc_devtodev0 {
 };
 
 union noc_ddrmode {
-	u32 d32;
+	uint32_t d32;
 	struct {
 		unsigned autoprecharge : 1;
 		unsigned bypassfiltering : 1;
@@ -174,18 +152,18 @@ union noc_ddrmode {
 };
 
 struct rk3399_msch_regs {
-	u32 coreid;
-	u32 revisionid;
-	u32 ddrconf;
-	u32 ddrsize;
+	uint32_t coreid;
+	uint32_t revisionid;
+	uint32_t ddrconf;
+	uint32_t ddrsize;
 	union noc_ddrtiminga0 ddrtiminga0;
 	union noc_ddrtimingb0 ddrtimingb0;
 	union noc_ddrtimingc0 ddrtimingc0;
 	union noc_devtodev0 devtodev0;
-	u32 reserved0[(0x110-0x20)/4];
+	uint32_t reserved0[(0x110 - 0x20) / 4];
 	union noc_ddrmode ddrmode;
-	u32 reserved1[(0x1000-0x114)/4];
-	u32 agingx0;
+	uint32_t reserved1[(0x1000 - 0x114) / 4];
+	uint32_t agingx0;
 };
 
 struct rk3399_msch_timings {
@@ -194,14 +172,14 @@ struct rk3399_msch_timings {
 	union noc_ddrtimingc0 ddrtimingc0;
 	union noc_devtodev0 devtodev0;
 	union noc_ddrmode ddrmode;
-	u32 agingx0;
+	uint32_t agingx0;
 };
 
 /* DENALI_CTL_00 */
 #define START		(1)
 
 /* DENALI_CTL_68 */
-#define PWRUP_SREFRESH_EXIT	(1 << 16)
+#define PWRUP_SREFRESH_EXIT	BIT(1)
 
 /* DENALI_CTL_274 */
 #define MEM_RST_VALID	(1)
@@ -243,13 +221,12 @@ struct rk3399_sdram_params {
 	unsigned int align_8;
 };
 
-#define PI_CA_TRAINING	(1 << 0)
-#define PI_WRITE_LEVELING	(1 << 1)
-#define PI_READ_GATE_TRAINING	(1 << 2)
-#define PI_READ_LEVELING	(1 << 3)
-#define PI_WDQ_LEVELING	(1 << 4)
-#define PI_FULL_TARINING	(0xff)
-
+#define PI_CA_TRAINING		BIT(0)
+#define PI_WRITE_LEVELING	BIT(1)
+#define PI_READ_GATE_TRAINING	BIT(2)
+#define PI_READ_LEVELING	BIT(3)
+#define PI_WDQ_LEVELING		BIT(4)
+#define PI_FULL_TRAINING	(0xff)
 
 /*
  * sys_reg bitfield struct
@@ -274,31 +251,32 @@ struct rk3399_sdram_params {
  * [1:0] dbw_ch0
 */
 #define SYS_REG_ENC_ROW_3_4(n, ch)	((n) << (30 + (ch)))
-#define SYS_REG_DEC_ROW_3_4(n, ch)	((n >> (30 + ch)) & 0x1)
+#define SYS_REG_DEC_ROW_3_4(n, ch)	(((n) >> (30 + (ch))) & 0x1)
 #define SYS_REG_ENC_CHINFO(ch)		(1 << (28 + (ch)))
+#define SYS_REG_DEC_CHINFO(n, ch)	(((n) >> (28 + (ch))) & 0x1)
 #define SYS_REG_ENC_DDRTYPE(n)		((n) << 13)
-#define SYS_REG_DEC_DDRTYPE(n)		(((n) >> 13)&0x7)
+#define SYS_REG_DEC_DDRTYPE(n)		(((n) >> 13) & 0x7)
 #define SYS_REG_ENC_NUM_CH(n)		(((n) - 1) << 12)
-#define SYS_REG_DEC_NUM_CH(n)		(1 + ((n >> 12) & 0x1))
-#define SYS_REG_ENC_RANK(n, ch)		(((n) - 1) << (11 + ((ch) * 16)))
-#define SYS_REG_DEC_RANK(n, ch)		(1 + ((n >> (11 + 16 * ch)) & 0x1))
-#define SYS_REG_ENC_COL(n, ch)		(((n) - 9) << (9 + ((ch) * 16)))
-#define SYS_REG_DEC_COL(n, ch)		(9 + ((n >> (9 + 16 * ch)) & 0x3))
-#define SYS_REG_ENC_BK(n, ch)		(((n) == 3 ? 0 : 1) \
-					<< (8 + ((ch) * 16)))
-#define SYS_REG_DEC_BK(n, ch)		(3 - ((n >> (8 + 16 * ch)) & 0x1))
-#define SYS_REG_ENC_CS0_ROW(n, ch)	(((n) - 13) << (6 + ((ch) * 16)))
-#define SYS_REG_DEC_CS0_ROW(n, ch)	(13 + ((n >> (6 + 16 * ch)) & 0x3))
-#define SYS_REG_ENC_CS1_ROW(n, ch)	(((n) - 13) << (4 + ((ch) * 16)))
-#define SYS_REG_DEC_CS1_ROW(n, ch)	(13 + ((n >> (4 + 16 * ch)) & 0x3))
-#define SYS_REG_ENC_BW(n, ch)		((2 >> (n)) << (2 + ((ch) * 16)))
-#define SYS_REG_DEC_BW(n, ch)		(2 >> ((n >> (2 + 16 * ch)) & 0x3))
-#define SYS_REG_ENC_DBW(n, ch)		((2 >> (n)) << (0 + ((ch) * 16)))
-#define SYS_REG_DEC_DBW(n, ch)		(2 >> ((n >> (0 + 16 * ch)) & 0x3))
-#define DDR_STRIDE(n)		do{write32(&sgrf_regs->sgrf_soc_con4, (0x1F<<(10+16))|((n)<<10));}while(0)
+#define SYS_REG_DEC_NUM_CH(n)		(1 + (((n) >> 12) & 0x1))
+#define SYS_REG_ENC_RANK(n, ch)		(((n) - 1) << (11 + (ch) * 16))
+#define SYS_REG_DEC_RANK(n, ch)		(1 + (((n) >> (11 + (ch) * 16)) & 0x1))
+#define SYS_REG_ENC_COL(n, ch)		(((n) - 9) << (9 + (ch) * 16))
+#define SYS_REG_DEC_COL(n, ch)		(9 + (((n) >> (9 + (ch) * 16)) & 0x3))
+#define SYS_REG_ENC_BK(n, ch)		(((n) == 3 ? 0 : 1) << (8 + (ch) * 16))
+#define SYS_REG_DEC_BK(n, ch)		(3 - (((n) >> (8 + (ch) * 16)) & 0x1))
+#define SYS_REG_ENC_CS0_ROW(n, ch)	(((n) - 13) << (6 + (ch) * 16))
+#define SYS_REG_DEC_CS0_ROW(n, ch)	(13 + (((n) >> (6 + (ch) * 16)) & 0x3))
+#define SYS_REG_ENC_CS1_ROW(n, ch)	(((n) - 13) << (4 + (ch) * 16))
+#define SYS_REG_DEC_CS1_ROW(n, ch)	(13 + (((n) >> (4 + (ch) * 16)) & 0x3))
+#define SYS_REG_ENC_BW(n, ch)		((2 >> (n)) << (2 + (ch) * 16))
+#define SYS_REG_DEC_BW(n, ch)		(2 >> (((n) >> (2 + (ch) * 16)) & 0x3))
+#define SYS_REG_ENC_DBW(n, ch)		((2 >> (n)) << (0 + (ch) * 16))
+#define SYS_REG_DEC_DBW(n, ch)		(2 >> (((n) >> (0 + (ch) * 16)) & 0x3))
+#define DDR_STRIDE(n)	\
+	mmio_write_32(SGRF_BASE + SGRF_SOC_CON3_7(4), \
+		      (0x1f << (10 + 16)) | ((n) << 10)); \
 
-
-__sramdata extern struct rk3399_sdram_params sdram_configs[];
+__sramdata extern struct rk3399_sdram_params sdram_config;
 
 void dmc_save(void);
 __sramfunc void dmc_restore(void);
