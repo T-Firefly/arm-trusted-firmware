@@ -34,69 +34,18 @@
 #include <mmio.h>
 #include <platform_def.h>
 #include <plat_private.h>
+#include <dram.h>
 #include <rk3399_def.h>
+#include <rk3399m0.h>
 #include <soc.h>
 
 /* Table of regions to map using the MMU.  */
 const mmap_region_t plat_rk_mmap[] = {
-	MAP_REGION_FLAT(GIC500_BASE, GIC500_SIZE,
+	MAP_REGION_FLAT(RK3399_DEV_RNG0_BASE, RK3399_DEV_RNG0_SIZE,
 			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(CCI500_BASE, CCI500_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(STIME_BASE, STIME_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(CRUS_BASE, CRUS_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(SGRF_BASE, SGRF_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(PMU_BASE, PMU_SIZE,
-			MT_DEVICE | MT_RW | MT_NS),
 	MAP_REGION_FLAT(PMUSRAM_BASE, PMUSRAM_SIZE,
 			MT_MEMORY | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(RK3399_UART2_BASE, RK3399_UART2_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(PMUGRF_BASE, PMUGRF_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(GRF_BASE, GRF_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(SERVICE_NOC_0_BASE, NOC_0_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(SERVICE_NOC_1_BASE, NOC_1_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(SERVICE_NOC_2_BASE, NOC_2_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(SERVICE_NOC_3_BASE, NOC_3_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(INTMEM_BASE, INTMEM_SIZE,
-			MT_MEMORY | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(CRU_BASE, CRU_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(DDRC0_BASE, SIZE_K(64),
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(DDRC1_BASE, DDRC1_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(CIC_BASE, CIC_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(DCF_BASE, DCF_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(VOP_LIT_BASE, VOP_LIT_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(VOP_BIG_BASE, VOP_BIG_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(SERVICE_NOC_1_BASE, NOC_1_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(SERVICE_NOC_2_BASE, NOC_2_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(SERVICE_NOC_3_BASE, NOC_3_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(GPIO0_BASE, GPIO0_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(GPIO1_BASE, GPIO1_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(SHARE_MEM_BASE, SHARE_MEM_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(TFW_DATA_FIQ_BASE, TFW_DATA_FIQ_SIZE,
-			MT_MEMORY | MT_RW | MT_SECURE),
+
 	{ 0 }
 };
 
@@ -123,12 +72,6 @@ void secure_timer_init(void)
 	/* auto reload & enable the timer */
 	mmio_write_32(STIMER1_CHN_BASE(5) + TIMER_CONTROL_REG,
 		      TIMER_EN | TIMER_FMODE);
-}
-
-void secure_timer_disable(void)
-{
-	mmio_write_32(STIMER1_CHN_BASE(5) + TIMER_CONTROL_REG,
-		      TIMER_DIS);
 }
 
 void sgrf_init(void)
@@ -249,6 +192,28 @@ static void dma_secure_cfg(uint32_t secure)
 /* pll suspend */
 struct deepsleep_data_s slp_data;
 
+void secure_watchdog_disable(void)
+{
+	slp_data.sgrf_con[3] = mmio_read_32(SGRF_BASE + SGRF_SOC_CON3_7(3));
+
+	/* disable CA53 wdt pclk */
+	mmio_write_32(SGRF_BASE + SGRF_SOC_CON3_7(3),
+		      BITS_WITH_WMASK(WDT_CA53_DIS, WDT_CA53_1BIT_MASK,
+				      PCLK_WDT_CA53_GATE_SHIFT));
+	/* disable CM0 wdt pclk */
+	mmio_write_32(SGRF_BASE + SGRF_SOC_CON3_7(3),
+		      BITS_WITH_WMASK(WDT_CM0_DIS, WDT_CM0_1BIT_MASK,
+				      PCLK_WDT_CM0_GATE_SHIFT));
+}
+
+void secure_watchdog_restore(void)
+{
+	mmio_write_32(SGRF_BASE + SGRF_SOC_CON3_7(3),
+		      slp_data.sgrf_con[3] |
+		      WMSK_BIT(PCLK_WDT_CA53_GATE_SHIFT) |
+		      WMSK_BIT(PCLK_WDT_CM0_GATE_SHIFT));
+}
+
 static void set_pll_slow_mode(uint32_t pll_id)
 {
 	if (pll_id == PPLL_ID)
@@ -283,76 +248,104 @@ static void _pll_suspend(uint32_t pll_id)
 	set_pll_bypass(pll_id);
 }
 
-void set_abpll(void)
-{
-	uint32_t i;
-
-	for (i = 0; i < PLL_CON_COUNT; i++) {
-		slp_data.plls_con[ABPLL_ID][i] =
-			mmio_read_32(CRU_BASE + CRU_PLL_CON(ABPLL_ID, i));
-		slp_data.plls_con[DPLL_ID][i] =
-			mmio_read_32(CRU_BASE + CRU_PLL_CON(DPLL_ID, i));
-	}
-	set_pll_slow_mode(ABPLL_ID);
-	for (i = 0; i < PLL_CON_COUNT; i++) {
-		if (i != 2)
-			mmio_write_32(CRU_BASE + CRU_PLL_CON(ABPLL_ID, i),
-				      slp_data.plls_con[DPLL_ID][i] |
-				      0xffff0000);
-	}
-	mmio_write_32(CRU_BASE + CRU_PLL_CON(ABPLL_ID, 2),
-		      slp_data.plls_con[DPLL_ID][2]);
-	while ((mmio_read_32(CRU_BASE + CRU_PLL_CON(ABPLL_ID, 2)) &
-	      0x80000000) == 0x0)
-		;
-	set_pll_normal_mode(ABPLL_ID);
-}
-void restore_dpll(void)
-{
-	uint32_t i;
-
-	set_pll_slow_mode(DPLL_ID);
-	for (i = 0; i < PLL_CON_COUNT; i++) {
-		if (i != 2)
-			mmio_write_32(CRU_BASE + CRU_PLL_CON(DPLL_ID, i),
-				      slp_data.plls_con[DPLL_ID][i] |
-				      0xffff0000);
-	}
-	mmio_write_32(CRU_BASE + CRU_PLL_CON(DPLL_ID, 2),
-		      slp_data.plls_con[DPLL_ID][2]);
-	while ((mmio_read_32(CRU_BASE + CRU_PLL_CON(DPLL_ID, 2)) &
-	      0x80000000) == 0x0)
-		;
-	set_pll_normal_mode(DPLL_ID);
-}
-void restore_abpll(void)
-{
-	uint32_t i;
-
-	set_pll_slow_mode(ABPLL_ID);
-	for (i = 0; i < PLL_CON_COUNT; i++) {
-		if (i != 2)
-			mmio_write_32(CRU_BASE + CRU_PLL_CON(ABPLL_ID, i),
-				      slp_data.plls_con[ABPLL_ID][i] |
-				      0xffff0000);
-	}
-	mmio_write_32(CRU_BASE + CRU_PLL_CON(ABPLL_ID, 2),
-		      slp_data.plls_con[ABPLL_ID][2]);
-	while ((mmio_read_32(CRU_BASE + CRU_PLL_CON(ABPLL_ID, 2)) &
-	       0x80000000) == 0x0)
-		;
-	set_pll_normal_mode(ABPLL_ID);
-}
-void plls_suspend(void)
+/**
+ * disable_dvfs_plls - To suspend the specific PLLs
+ *
+ * When we close the center logic, the DPLL will be closed,
+ * so we need to keep the ABPLL and switch to it to supply
+ * clock for DDR during suspend, then we should not close
+ * the ABPLL and exclude ABPLL_ID.
+ */
+void disable_dvfs_plls(void)
 {
 	_pll_suspend(CPLL_ID);
 	_pll_suspend(NPLL_ID);
 	_pll_suspend(VPLL_ID);
-	_pll_suspend(PPLL_ID);
 	_pll_suspend(GPLL_ID);
 	_pll_suspend(ALPLL_ID);
 }
 
+/**
+ * disable_nodvfs_plls - To suspend the PPLL
+ */
+void disable_nodvfs_plls(void)
+{
+	_pll_suspend(PPLL_ID);
+}
+
+/**
+ * restore_pll - Copy PLL settings from memory to a PLL.
+ *
+ * This will copy PLL settings from an array in memory to the memory mapped
+ * registers for a PLL.
+ *
+ * Note that: above the PLL exclude PPLL.
+ *
+ * pll_id: One of the values from enum plls_id
+ * src: Pointer to the array of values to restore from
+ */
+static void restore_pll(int pll_id, uint32_t *src)
+{
+	/* Nice to have PLL off while configuring */
+	mmio_write_32((CRU_BASE + CRU_PLL_CON(pll_id, 3)), PLL_SLOW_MODE);
+
+	mmio_write_32(CRU_BASE + CRU_PLL_CON(pll_id, 0), src[0] | REG_SOC_WMSK);
+	mmio_write_32(CRU_BASE + CRU_PLL_CON(pll_id, 1), src[1] | REG_SOC_WMSK);
+	mmio_write_32(CRU_BASE + CRU_PLL_CON(pll_id, 2), src[2]);
+	mmio_write_32(CRU_BASE + CRU_PLL_CON(pll_id, 4), src[4] | REG_SOC_WMSK);
+	mmio_write_32(CRU_BASE + CRU_PLL_CON(pll_id, 5), src[5] | REG_SOC_WMSK);
+
+	/* Do PLL_CON3 since that will enable things */
+	mmio_write_32(CRU_BASE + CRU_PLL_CON(pll_id, 3), src[3] | REG_SOC_WMSK);
+
+	/* Wait for PLL lock done */
+	while ((mmio_read_32(CRU_BASE + CRU_PLL_CON(pll_id, 2)) &
+		0x80000000) == 0x0)
+		;
+}
+
+/**
+ * save_pll - Copy PLL settings a PLL to memory
+ *
+ * This will copy PLL settings from the memory mapped registers for a PLL to
+ * an array in memory.
+ *
+ * Note that: above the PLL exclude PPLL.
+ *
+ * pll_id: One of the values from enum plls_id
+ * src: Pointer to the array of values to save to.
+ */
+static void save_pll(uint32_t *dst, int pll_id)
+{
+	int i;
+
+	for (i = 0; i < PLL_CON_COUNT; i++)
+		dst[i] = mmio_read_32(CRU_BASE + CRU_PLL_CON(pll_id, i));
+}
+
+/**
+ * prepare_abpll_for_ddrctrl - Copy DPLL settings to ABPLL
+ *
+ * This will copy DPLL settings from the memory mapped registers for a PLL to
+ * an array in memory.
+ */
+void prepare_abpll_for_ddrctrl(void)
+{
+	save_pll(slp_data.plls_con[ABPLL_ID], ABPLL_ID);
+	save_pll(slp_data.plls_con[DPLL_ID], DPLL_ID);
+
+	restore_pll(ABPLL_ID, slp_data.plls_con[DPLL_ID]);
+}
+
+void restore_abpll(void)
+{
+	restore_pll(ABPLL_ID, slp_data.plls_con[ABPLL_ID]);
+}
+
+void restore_dpll(void)
+{
+	restore_pll(DPLL_ID, slp_data.plls_con[DPLL_ID]);
+}
 
 void clk_gate_con_save(void)
 {
@@ -401,17 +394,34 @@ static void set_plls_nobypass(uint32_t pll_id)
 			      PLL_NO_BYPASS_MODE);
 }
 
-void plls_resume(void)
+static void _pll_resume(uint32_t pll_id)
 {
-	int pll_id;
+	set_plls_nobypass(pll_id);
+	set_pll_normal_mode(pll_id);
+}
 
-	set_pll_normal_mode(PPLL_ID);
-	for (pll_id = ALPLL_ID; pll_id < END_PLL_ID; pll_id++) {
-		if (pll_id != ABPLL_ID) {
-			set_plls_nobypass(pll_id);
-			set_pll_normal_mode(pll_id);
-		}
-	}
+/**
+ * enable_dvfs_plls - To resume the specific PLLs
+ *
+ * Please see the comment at the disable_dvfs_plls()
+ * we don't suspend the ABPLL, so don't need resume
+ * it too.
+ */
+void enable_dvfs_plls(void)
+{
+	_pll_resume(ALPLL_ID);
+	_pll_resume(GPLL_ID);
+	_pll_resume(VPLL_ID);
+	_pll_resume(NPLL_ID);
+	_pll_resume(CPLL_ID);
+}
+
+/**
+ * enable_nodvfs_plls - To resume the PPLL
+ */
+void enable_nodvfs_plls(void)
+{
+	_pll_resume(PPLL_ID);
 }
 
 void soc_global_soft_reset_init(void)
@@ -445,14 +455,18 @@ void  __dead2 soc_global_soft_reset(void)
 		;
 }
 
-void soc_m0_init(void)
+static void soc_m0_init(void)
 {
-	/* secure config for pmu m0*/
+	/* secure config for pmu M0 */
 	mmio_write_32(SGRF_BASE + SGRF_PMU_CON(0), WMSK_BIT(7));
+
+	/* set the execute address for M0 */
 	mmio_write_32(SGRF_BASE + SGRF_PMU_CON(3),
-		      BITS_WITH_WMASK(0xf8c1, 0xffff, 0x0));
+		      BITS_WITH_WMASK((M0_BINCODE_BASE >> 12) & 0xffff,
+				      0xffff, 0));
 	mmio_write_32(SGRF_BASE + SGRF_PMU_CON(7),
-		      BITS_WITH_WMASK(0xf, 0xf, 0x0));
+		      BITS_WITH_WMASK((M0_BINCODE_BASE >> 28) & 0xf,
+				      0xf, 0));
 }
 
 void plat_rockchip_soc_init(void)
@@ -461,5 +475,7 @@ void plat_rockchip_soc_init(void)
 	dma_secure_cfg(0);
 	sgrf_init();
 	soc_global_soft_reset_init();
+	plat_rockchip_gpio_init();
 	soc_m0_init();
+	dram_init();
 }

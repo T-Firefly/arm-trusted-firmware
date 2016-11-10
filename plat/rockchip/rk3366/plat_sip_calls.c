@@ -59,7 +59,7 @@ uint32_t pm_ctrbits_rw(uint32_t val, uint32_t rw)
 	else
 		return rkpm_get_ctrbits();
 
-	return RK_SIP_E_SUCCESS;
+	return SIP_RET_SUCCESS;
 }
 
 static uint32_t UART_BASE[] = {

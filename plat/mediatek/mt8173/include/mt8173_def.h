@@ -50,6 +50,7 @@
 #define MCUCFG_BASE		(IO_PHYS + 0x200000)
 #define APMIXED_BASE		(IO_PHYS + 0x209000)
 #define TRNG_BASE		(IO_PHYS + 0x20F000)
+#define CRYPT_BASE		(IO_PHYS + 0x210000)
 #define MT_GIC_BASE		(IO_PHYS + 0x220000)
 #define PLAT_MT_CCI_BASE	(IO_PHYS + 0x390000)
 
@@ -82,7 +83,6 @@
  * System counter frequency related constants
  ******************************************************************************/
 #define SYS_COUNTER_FREQ_IN_TICKS	13000000
-#define SYS_COUNTER_FREQ_IN_MHZ		13
 
 /*******************************************************************************
  * GIC-400 & interrupt handling related constants

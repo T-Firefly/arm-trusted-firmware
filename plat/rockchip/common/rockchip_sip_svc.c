@@ -30,7 +30,6 @@
 #include <plat_sip_calls.h>
 #include <rockchip_sip_svc.h>
 #include <runtime_svc.h>
-#include <string.h>
 #include <uuid.h>
 
 /* Rockchip SiP Service UUID */
@@ -38,15 +37,8 @@ DEFINE_SVC_UUID(rk_sip_svc_uid,
 		0xe86fc7e2, 0x313e, 0x11e6, 0xb7, 0x0d,
 		0x8f, 0x88, 0xee, 0x74, 0x7b, 0x72);
 
-#pragma weak sip_version_handler
-#pragma weak atf_version_handler
-#pragma weak suspend_mode_handler
-#pragma weak ddr_smc_handler
-#pragma weak share_mem_page_get_handler
-#pragma weak share_mem_type2page_base
-#pragma weak private_plat_sip_handler
+#pragma weak rockchip_plat_sip_handler
 
-#define SIZE_PAGE(n)	((n) << 12)
 
 int sip_version_handler(struct arm_smccc_res *res)
 {
@@ -55,25 +47,10 @@ int sip_version_handler(struct arm_smccc_res *res)
 	return SIP_RET_SUCCESS;
 }
 
-int atf_version_handler(struct arm_smccc_res *res)
-{
-	return SIP_RET_NOT_SUPPORTED;
-}
-
-int suspend_mode_handler(uint64_t mode_id, uint64_t config1, uint64_t config2)
-{
-	return SIP_RET_NOT_SUPPORTED;
-}
-
-/******************************* ddr smc *************************************/
-int ddr_smc_handler(uint64_t arg0, uint64_t arg1,
-		    uint64_t id, struct arm_smccc_res *res)
-{
-	return SIP_RET_NOT_SUPPORTED;
-}
-
 /****************************** share mem smc *********************************/
 #ifdef SHARE_MEM_BASE
+
+#define SIZE_PAGE(n)	((n) << 12)
 
 struct share_mem_manage {
 	uint64_t page_base;
@@ -154,19 +131,6 @@ int share_mem_type2page_base(share_page_type_t page_type, uint64_t *out_value)
 }
 #endif
 
-int private_plat_sip_handler(uint32_t smc_fid,
-			     uint64_t x1,
-			     uint64_t x2,
-			     uint64_t x3,
-			     uint64_t x4,
-			     void *handle,
-			     struct arm_smccc_res *res)
-{
-	ERROR("%s: unhandled SMC (0x%x)\n", __func__, smc_fid);
-	return SMC_UNK;
-}
-
-/************************* main smc handler ***********************************/
 uint64_t rockchip_plat_sip_handler(uint32_t smc_fid,
 				   uint64_t x1,
 				   uint64_t x2,
@@ -176,36 +140,8 @@ uint64_t rockchip_plat_sip_handler(uint32_t smc_fid,
 				   void *handle,
 				   uint64_t flags)
 {
-	int ret;
-	struct arm_smccc_res res;
-
-	memset(&res, 0, sizeof(struct arm_smccc_res));
-
-	switch (smc_fid) {
-	case RK_SIP_ATF_VERSION32:
-		ret = atf_version_handler(&res);
-		SMC_RET4(handle, ret, res.a1, res.a2, res.a3);
-
-	case RK_SIP_SIP_VERSION32:
-		ret = sip_version_handler(&res);
-		SMC_RET4(handle, ret, res.a1, res.a2, res.a3);
-
-	case RK_SIP_SUSPEND_MODE32:
-		SMC_RET1(handle, suspend_mode_handler(x1, x2, x3));
-
-	case RK_SIP_DDR_CFG32:
-		ret = ddr_smc_handler(x1, x2, x3, &res);
-		SMC_RET4(handle, ret, res.a1, res.a2, res.a3);
-
-	case RK_SIP_SHARE_MEM32:
-		ret = share_mem_page_get_handler(x1, x2, &res);
-		SMC_RET4(handle, ret, res.a1, res.a2, res.a3);
-
-	default:
-		ret = private_plat_sip_handler(smc_fid, x1, x2, x3, x4,
-					       handle, &res);
-		SMC_RET4(handle, ret, res.a1, res.a2, res.a3);
-	}
+	ERROR("%s: unhandled SMC (0x%x)\n", __func__, smc_fid);
+	SMC_RET1(handle, SMC_UNK);
 }
 
 /*
@@ -221,6 +157,8 @@ uint64_t sip_smc_handler(uint32_t smc_fid,
 			 uint64_t flags)
 {
 	uint32_t ns;
+	int ret;
+	struct arm_smccc_res res;
 
 	/* Determine which security state this SMC originated from */
 	ns = is_caller_non_secure(flags);
@@ -236,13 +174,15 @@ uint64_t sip_smc_handler(uint32_t smc_fid,
 	case SIP_SVC_UID:
 		/* Return UID to the caller */
 		SMC_UUID_RET(handle, rk_sip_svc_uid);
-		break;
 
 	case SIP_SVC_VERSION:
 		/* Return the version of current implementation */
 		SMC_RET2(handle, RK_SIP_SVC_VERSION_MAJOR,
 			RK_SIP_SVC_VERSION_MINOR);
-		break;
+
+	case RK_SIP_SIP_VERSION32:
+		ret = sip_version_handler(&res);
+		SMC_RET2(handle, ret, res.a1);
 
 	default:
 		return rockchip_plat_sip_handler(smc_fid, x1, x2, x3, x4,

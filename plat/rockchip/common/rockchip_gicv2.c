@@ -29,8 +29,10 @@
  */
 
 #include <bl_common.h>
+#include <gic_common_private.h>
 #include <gicv2.h>
 #include <platform_def.h>
+#include <utils.h>
 
 /******************************************************************************
  * The following functions are defined as weak to allow a platform to override

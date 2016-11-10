@@ -146,6 +146,4 @@
 
 #define PLAT_RK_PRIMARY_CPU	0x0
 
-#define RK_PLAT_AARCH_CFG	RK_PLAT_CFG0
-
 #endif /* __PLATFORM_DEF_H__ */

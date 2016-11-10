@@ -38,11 +38,10 @@ PLAT_INCLUDES           :=	-I${RK_PLAT_COMMON}/				\
                                 -I${RK_PLAT_COMMON}/drivers/pmu/			\
 				-I${RK_PLAT_SOC}/				\
                                 -I${RK_PLAT_SOC}/drivers/pmu/                   \
+				-I${RK_PLAT_SOC}/drivers/pwm/			\
                                 -I${RK_PLAT_SOC}/drivers/soc/                   \
                                 -I${RK_PLAT_SOC}/drivers/dram/			\
-                                -I${RK_PLAT_SOC}/drivers/dmc/                   \
 				-Idrivers/arm/gic/common/			\
-				-Iinclude/plat/common/				\
                                 -I${RK_PLAT_SOC}/include/                       \
 
 RK_GIC_SOURCES          :=      drivers/arm/gic/common/gic_common.c     \
@@ -51,33 +50,59 @@ RK_GIC_SOURCES          :=      drivers/arm/gic/common/gic_common.c     \
                                 plat/common/plat_gicv3.c                \
                                 ${RK_PLAT}/common/rockchip_gicv3.c
 
-PLAT_BL_COMMON_SOURCES  :=      lib/aarch64/xlat_tables.c                       \
+PLAT_BL_COMMON_SOURCES  :=	lib/xlat_tables/xlat_tables_common.c		\
+				lib/xlat_tables/aarch64/xlat_tables.c		\
                                 plat/common/aarch64/plat_common.c               \
-				plat/common/aarch64/plat_psci_common.c
+				plat/common/plat_psci_common.c
 
 BL31_SOURCES            +=      ${RK_GIC_SOURCES}                               \
                                 drivers/arm/cci/cci.c                           \
-                                drivers/console/console.S                       \
-                                drivers/ti/uart/16550_console.S                 \
+                                drivers/console/aarch64/console.S		\
+                                drivers/ti/uart/aarch64/16550_console.S		\
                                 drivers/delay_timer/delay_timer.c               \
+                                drivers/delay_timer/generic_delay_timer.c	\
+				drivers/gpio/gpio.c				\
                                 lib/cpus/aarch64/cortex_a53.S                   \
                                 lib/cpus/aarch64/cortex_a72.S                   \
                                 plat/common/aarch64/platform_mp_stack.S         \
 				plat/rockchip/common/rockchip_exceptions.c	\
                                 ${RK_PLAT_COMMON}/aarch64/plat_helpers.S        \
                                 ${RK_PLAT_COMMON}/bl31_plat_setup.c             \
+                                ${RK_PLAT_COMMON}/params_setup.c                \
                                 ${RK_PLAT_COMMON}/pmusram/pmu_sram_cpus_on.S	\
 				${RK_PLAT_COMMON}/pmusram/pmu_sram.c		\
-                                ${RK_PLAT_COMMON}/plat_delay_timer.c            \
                                 ${RK_PLAT_COMMON}/plat_pm.c                     \
                                 ${RK_PLAT_COMMON}/plat_topology.c               \
                                 ${RK_PLAT_COMMON}/aarch64/platform_common.c        \
 				${RK_PLAT_COMMON}/rockchip_sip_svc.c		\
 				${RK_PLAT_SOC}/plat_sip_calls.c			\
+				${RK_PLAT_SOC}/drivers/gpio/rk3399_gpio.c	\
                                 ${RK_PLAT_SOC}/drivers/pmu/pmu.c                \
+                                ${RK_PLAT_SOC}/drivers/pmu/pmu_fw.c             \
+				${RK_PLAT_SOC}/drivers/pwm/pwm.c	\
                                 ${RK_PLAT_SOC}/drivers/soc/soc.c		\
+				${RK_PLAT_SOC}/drivers/dram/dfs.c		\
+                                ${RK_PLAT_SOC}/drivers/dram/suspend.c           \
 				${RK_PLAT_SOC}/drivers/dram/dram.c		\
-                               ${RK_PLAT_SOC}/drivers/dmc/dmc.c			\
 				${RK_PLAT_SOC}/drivers/dram/dram_spec_timing.c
 
 ENABLE_PLAT_COMPAT      :=      0
+
+$(eval $(call add_define,PLAT_EXTRA_LD_SCRIPT))
+
+# M0 source build
+PLAT_M0                 :=      ${PLAT}m0
+BUILD_M0		:=	${BUILD_PLAT}/m0
+
+RK3399M0FW=${BUILD_M0}/${PLAT_M0}.bin
+$(eval $(call add_define,RK3399M0FW))
+
+# CCACHE_EXTRAFILES is needed because ccache doesn't handle .incbin
+export CCACHE_EXTRAFILES
+${BUILD_PLAT}/bl31/pmu_fw.o: CCACHE_EXTRAFILES=$(RK3399M0FW)
+${RK_PLAT_SOC}/drivers/pmu/pmu_fw.c: $(RK3399M0FW)
+
+$(eval $(call MAKE_PREREQ_DIR,${BUILD_M0},))
+.PHONY: $(RK3399M0FW)
+$(RK3399M0FW): | ${BUILD_M0}
+	$(MAKE) -C ${RK_PLAT_SOC}/drivers/m0 BUILD=$(abspath ${BUILD_PLAT}/m0)

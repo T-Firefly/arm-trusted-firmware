@@ -29,11 +29,12 @@
  */
 
 #include <bl_common.h>
+#include <gic_common_private.h>
 #include <gicv3.h>
 #include <platform.h>
 #include <platform_def.h>
-#include <gic_common_private.h>
 #include <plat_private.h>
+#include <utils.h>
 
 /******************************************************************************
  * The following functions are defined as weak to allow a platform to override
@@ -47,7 +48,6 @@
 #pragma weak plat_rockchip_gic_fiq_enable
 #pragma weak plat_rockchip_gic_fiq_disable
 #pragma weak plat_rockchip_gic_set_itargetsr
-
 
 /* The GICv3 driver only needs to be initialized in EL3 */
 uintptr_t rdistif_base_addrs[PLATFORM_CORE_COUNT];

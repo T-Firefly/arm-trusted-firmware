@@ -212,7 +212,7 @@ static int cores_pwr_domain_suspend(void)
 
 	assert(cpuson_flags[cpu_id] == 0);
 	cpuson_flags[cpu_id] = PMU_CPU_AUTO_PWRDN;
-	cpuson_entry_point[cpu_id] = (uintptr_t)psci_entrypoint;
+	cpuson_entry_point[cpu_id] = (uintptr_t)plat_get_sec_entrypoint();
 	dsb();
 
 	cpus_power_domain_off(cpu_id, core_pwr_wfi_int);

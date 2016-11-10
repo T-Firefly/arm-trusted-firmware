@@ -33,6 +33,7 @@
 #include <bl_common.h>
 #include <console.h>
 #include <debug.h>
+#include <generic_delay_timer.h>
 #include <mmio.h>
 #include <platform.h>
 #include <plat_private.h>
@@ -89,6 +90,12 @@ entry_point_info_t *bl31_plat_get_next_image_ep_info(uint32_t type)
 		return NULL;
 }
 
+#pragma weak params_early_setup
+
+void params_early_setup(void *plat_param_from_bl2)
+{
+}
+
 /*******************************************************************************
  * Perform any BL3-1 early platform setup. Here is an opportunity to copy
  * parameters passed by the calling EL (S-EL1 in BL2 & S-EL3 in BL1) before they
@@ -114,7 +121,10 @@ void bl31_early_platform_setup(bl31_params_t *from_bl2,
 	bl32_ep_info = *from_bl2->bl32_ep_info;
 	bl33_ep_info = *from_bl2->bl33_ep_info;
 
-	plat_rockchip_mem_prepare();
+	plat_rockchip_pmusram_prepare();
+
+	/* there may have some board sepcific message need to initialize */
+	params_early_setup(plat_params_from_bl2);
 }
 
 /*******************************************************************************
@@ -122,7 +132,7 @@ void bl31_early_platform_setup(bl31_params_t *from_bl2,
  ******************************************************************************/
 void bl31_platform_setup(void)
 {
-	plat_delay_timer_init();
+	generic_delay_timer_init();
 	plat_rockchip_soc_init();
 
 	/* Initialize the gic cpu and distributor interfaces */

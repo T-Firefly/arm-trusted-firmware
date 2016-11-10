@@ -87,6 +87,8 @@ extern uint32_t cpuson_flags[PLATFORM_CORE_COUNT];
 #define PMU_WKUP_RST_CNT	0x5c
 #define PMU_CPUAPM_CON(cpu)	(0x80 + (cpu * 4))
 
+#define CHECK_CPU_WFIE_BASE	(PMU_BASE + PMU_CORE_PWR_ST)
+
 enum pmu_pd_id {
 	PD_CPU0 = 0,
 	PD_CPU1,

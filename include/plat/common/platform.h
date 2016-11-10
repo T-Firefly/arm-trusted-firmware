@@ -44,11 +44,16 @@ struct image_info;
 struct entry_point_info;
 struct bl31_params;
 struct image_desc;
+struct bl_load_info;
+struct bl_params;
 
 /*******************************************************************************
  * plat_get_rotpk_info() flags
  ******************************************************************************/
 #define ROTPK_IS_HASH			(1 << 0)
+/* Flag used to skip verification of the certificate ROTPK while the platform
+   ROTPK is not deployed */
+#define ROTPK_NOT_DEPLOYED		(1 << 1)
 
 /*******************************************************************************
  * Function declarations
@@ -56,7 +61,9 @@ struct image_desc;
 /*******************************************************************************
  * Mandatory common functions
  ******************************************************************************/
-uint64_t plat_get_syscnt_freq(void);
+unsigned long long plat_get_syscnt_freq(void) __deprecated;
+unsigned int plat_get_syscnt_freq2(void);
+
 int plat_get_image_source(unsigned int image_id,
 			uintptr_t *dev_handle,
 			uintptr_t *image_spec);
@@ -78,8 +85,8 @@ uint32_t plat_interrupt_type_to_line(uint32_t type,
 /*******************************************************************************
  * Optional common functions (may be overridden)
  ******************************************************************************/
-unsigned long plat_get_my_stack(void);
-void plat_report_exception(unsigned long);
+uintptr_t plat_get_my_stack(void);
+void plat_report_exception(unsigned int exception_type);
 int plat_crash_console_init(void);
 int plat_crash_console_putc(int c);
 void plat_error_handler(int err) __dead2;
@@ -132,6 +139,15 @@ void bl2_early_platform_setup(struct meminfo *mem_layout);
 void bl2_plat_arch_setup(void);
 void bl2_platform_setup(void);
 struct meminfo *bl2_plat_sec_mem_layout(void);
+
+#if LOAD_IMAGE_V2
+/*
+ * This function can be used by the platforms to update/use image
+ * information for given `image_id`.
+ */
+int bl2_plat_handle_post_image_load(unsigned int image_id);
+
+#else /* LOAD_IMAGE_V2 */
 
 /*
  * This function returns a pointer to the shared memory that the platform has
@@ -189,6 +205,8 @@ void bl2_plat_set_bl32_ep_info(struct image_info *image,
 /* Gets the memory layout for BL32 */
 void bl2_plat_get_bl32_meminfo(struct meminfo *mem_info);
 
+#endif /* LOAD_IMAGE_V2 */
+
 /*******************************************************************************
  * Optional BL2 functions (may be overridden)
  ******************************************************************************/
@@ -213,8 +231,13 @@ int bl2u_plat_handle_scp_bl2u(void);
 /*******************************************************************************
  * Mandatory BL31 functions
  ******************************************************************************/
+#if LOAD_IMAGE_V2
+void bl31_early_platform_setup(void *from_bl2,
+				void *plat_params_from_bl2);
+#else
 void bl31_early_platform_setup(struct bl31_params *from_bl2,
 				void *plat_params_from_bl2);
+#endif
 void bl31_plat_arch_setup(void);
 void bl31_platform_setup(void);
 void bl31_plat_runtime_setup(void);
@@ -249,6 +272,33 @@ void bl32_plat_enable_mmu(uint32_t flags);
  ******************************************************************************/
 int plat_get_rotpk_info(void *cookie, void **key_ptr, unsigned int *key_len,
 			unsigned int *flags);
+int plat_get_nv_ctr(void *cookie, unsigned int *nv_ctr);
+int plat_set_nv_ctr(void *cookie, unsigned int nv_ctr);
+
+#if LOAD_IMAGE_V2
+/*******************************************************************************
+ * Mandatory BL image load functions(may be overridden).
+ ******************************************************************************/
+/*
+ * This function returns pointer to the list of images that the
+ * platform has populated to load.
+ */
+struct bl_load_info *plat_get_bl_image_load_info(void);
+
+/*
+ * This function returns a pointer to the shared memory that the
+ * platform has kept aside to pass trusted firmware related
+ * information that next BL image could need.
+ */
+struct bl_params *plat_get_next_bl_params(void);
+
+/*
+ * This function flushes to main memory all the params that are
+ * passed to next image.
+ */
+void plat_flush_next_bl_params(void);
+
+#endif /* LOAD_IMAGE_V2 */
 
 #if ENABLE_PLAT_COMPAT
 /*

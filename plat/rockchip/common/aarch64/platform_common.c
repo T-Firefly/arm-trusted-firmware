@@ -37,6 +37,7 @@
 #include <xlat_tables.h>
 #include <platform_def.h>
 #include <plat_private.h>
+#include <utils.h>
 
 #ifdef PLAT_RK_CCI_BASE
 static const int cci_map[] = {
@@ -76,7 +77,7 @@ static const int cci_map[] = {
 /* Define EL3 variants of the function initialising the MMU */
 DEFINE_CONFIGURE_MMU_EL(3)
 
-uint64_t plat_get_syscnt_freq(void)
+unsigned int plat_get_syscnt_freq2(void)
 {
 	return SYS_COUNTER_FREQ_IN_TICKS;
 }

@@ -54,6 +54,8 @@
 #define PMU_DDRIO_PWR_CNT	0x58
 #define PMU_WKUPRST_CNT		0x5c
 
+#define CHECK_CPU_WFIE_BASE	(PMU_BASE + PMU_CORE_PWR_ST)
+
 enum pmu_powermode_core {
 	pmu_mdcr_global_int_dis = 0,
 	pmu_mdcr_core_src_gt,

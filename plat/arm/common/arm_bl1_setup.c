@@ -35,6 +35,8 @@
 #include <platform_def.h>
 #include <plat_arm.h>
 #include <sp805.h>
+#include <utils.h>
+#include <xlat_tables.h>
 #include "../../../bl1/bl1_private.h"
 
 
@@ -71,7 +73,6 @@ meminfo_t *bl1_plat_sec_mem_layout(void)
  ******************************************************************************/
 void arm_bl1_early_platform_setup(void)
 {
-	const size_t bl1_size = BL1_RAM_LIMIT - BL1_RAM_BASE;
 
 #if !ARM_DISABLE_TRUSTED_WDOG
 	/* Enable watchdog */
@@ -86,13 +87,15 @@ void arm_bl1_early_platform_setup(void)
 	bl1_tzram_layout.total_base = ARM_BL_RAM_BASE;
 	bl1_tzram_layout.total_size = ARM_BL_RAM_SIZE;
 
+#if !LOAD_IMAGE_V2
 	/* Calculate how much RAM BL1 is using and how much remains free */
 	bl1_tzram_layout.free_base = ARM_BL_RAM_BASE;
 	bl1_tzram_layout.free_size = ARM_BL_RAM_SIZE;
 	reserve_mem(&bl1_tzram_layout.free_base,
 		    &bl1_tzram_layout.free_size,
 		    BL1_RAM_BASE,
-		    bl1_size);
+		    BL1_RAM_LIMIT - BL1_RAM_BASE);
+#endif /* LOAD_IMAGE_V2 */
 }
 
 void bl1_early_platform_setup(void)
@@ -118,15 +121,22 @@ void bl1_early_platform_setup(void)
  *****************************************************************************/
 void arm_bl1_plat_arch_setup(void)
 {
-	arm_configure_mmu_el3(bl1_tzram_layout.total_base,
+	arm_setup_page_tables(bl1_tzram_layout.total_base,
 			      bl1_tzram_layout.total_size,
-			      BL1_RO_BASE,
-			      BL1_RO_LIMIT
+			      BL_CODE_BASE,
+			      BL1_CODE_LIMIT,
+			      BL1_RO_DATA_BASE,
+			      BL1_RO_DATA_LIMIT
 #if USE_COHERENT_MEM
 			      , BL1_COHERENT_RAM_BASE,
 			      BL1_COHERENT_RAM_LIMIT
 #endif
 			     );
+#ifdef AARCH32
+	enable_mmu_secure(0);
+#else
+	enable_mmu_el3(0);
+#endif /* AARCH32 */
 }
 
 void bl1_plat_arch_setup(void)

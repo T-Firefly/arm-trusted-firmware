@@ -32,7 +32,8 @@ RK_PLAT			:=	plat/rockchip
 RK_PLAT_SOC		:=	${RK_PLAT}/${PLAT}
 RK_PLAT_COMMON	        :=	${RK_PLAT}/common
 
-PLAT_INCLUDES		:=	-I${RK_PLAT_COMMON}/                            \
+PLAT_INCLUDES		:=	-Idrivers/arm/gic/common/			\
+				-I${RK_PLAT_COMMON}/                            \
                                 -I${RK_PLAT_COMMON}/include/                    \
                                 -I${RK_PLAT_COMMON}/pmusram                     \
 				-I${RK_PLAT_SOC}/				\
@@ -55,6 +56,7 @@ BL31_SOURCES		+=	${RK_GIC_SOURCES}				\
 				drivers/console/console.S			\
 				drivers/ti/uart/16550_console.S			\
 				drivers/delay_timer/delay_timer.c		\
+				drivers/delay_timer/generic_delay_timer.c	\
 				lib/cpus/aarch64/aem_generic.S			\
 				lib/cpus/aarch64/cortex_a53.S			\
 				plat/common/aarch64/platform_mp_stack.S		\
@@ -62,13 +64,13 @@ BL31_SOURCES		+=	${RK_GIC_SOURCES}				\
 				${RK_PLAT_COMMON}/bl31_plat_setup.c		\
                                 ${RK_PLAT_COMMON}/pmusram/pmu_sram_cpus_on.S    \
                                 ${RK_PLAT_COMMON}/pmusram/pmu_sram.c            \
-                                ${RK_PLAT_COMMON}/plat_delay_timer.c            \
 				${RK_PLAT_COMMON}/plat_pm.c			\
 				${RK_PLAT_COMMON}/plat_topology.c		\
 				${RK_PLAT_COMMON}/aarch64/platform_common.c	\
 				${RK_PLAT_COMMON}/rockchip_sip_svc.c		\
 				${RK_PLAT_SOC}/plat_sip_calls.c			\
 				${RK_PLAT_SOC}/drivers/pmu/pmu.c		\
+				${RK_PLAT_SOC}/drivers/pmu/plat_pmu_macros.S		\
 				${RK_PLAT_SOC}/drivers/soc/soc.c		\
 
 ENABLE_PLAT_COMPAT 	:=      0

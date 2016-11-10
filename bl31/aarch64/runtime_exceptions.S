@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015, ARM Limited and Contributors. All rights reserved.
+ * Copyright (c) 2013-2016, ARM Limited and Contributors. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -31,6 +31,7 @@
 #include <arch.h>
 #include <asm_macros.S>
 #include <context.h>
+#include <cpu_data.h>
 #include <interrupt_mgmt.h>
 #include <platform_def.h>
 #include <runtime_svc.h>
@@ -47,6 +48,21 @@
 	msr	daifclr, #DAIF_ABT_BIT
 
 	str	x30, [sp, #CTX_GPREGS_OFFSET + CTX_GPREG_LR]
+
+#if ENABLE_RUNTIME_INSTRUMENTATION
+
+	/*
+	 * Read the timestamp value and store it in per-cpu data.
+	 * The value will be extracted from per-cpu data by the
+	 * C level SMC handler and saved to the PMF timestamp region.
+	 */
+	mrs	x30, cntpct_el0
+	str	x29, [sp, #CTX_GPREGS_OFFSET + CTX_GPREG_X29]
+	mrs	x29, tpidr_el3
+	str	x30, [x29, #CPU_DATA_PMF_TS0_OFFSET]
+	ldr	x29, [sp, #CTX_GPREGS_OFFSET + CTX_GPREG_X29]
+#endif
+
 	mrs	x30, esr_el3
 	ubfx	x30, x30, #ESR_EC_SHIFT, #ESR_EC_LENGTH
 
@@ -161,14 +177,14 @@ interrupt_exit_\label:
 	str	x18, [sp, #CTX_GPREGS_OFFSET + CTX_GPREG_SP_EL0]
 	.endm
 
-	.section	.vectors, "ax"; .align 11
-	.align	7
-runtime_exceptions:
+
+vector_base runtime_exceptions
+
 	/* -----------------------------------------------------
 	 * Current EL with _sp_el0 : 0x0 - 0x200
 	 * -----------------------------------------------------
 	 */
-sync_exception_sp_el0:
+vector_entry sync_exception_sp_el0
 	/* -----------------------------------------------------
 	 * We don't expect any synchronous exceptions from EL3
 	 * -----------------------------------------------------
@@ -176,23 +192,22 @@ sync_exception_sp_el0:
 	bl	report_unhandled_exception
 	check_vector_size sync_exception_sp_el0
 
-	.align	7
 	/* -----------------------------------------------------
 	 * EL3 code is non-reentrant. Any asynchronous exception
 	 * is a serious error. Loop infinitely.
 	 * -----------------------------------------------------
 	 */
-irq_sp_el0:
+vector_entry irq_sp_el0
 	bl	report_unhandled_interrupt
 	check_vector_size irq_sp_el0
 
-	.align	7
-fiq_sp_el0:
+
+vector_entry fiq_sp_el0
 	bl	report_unhandled_interrupt
 	check_vector_size fiq_sp_el0
 
-	.align	7
-serror_sp_el0:
+
+vector_entry serror_sp_el0
 	bl	report_unhandled_exception
 	check_vector_size serror_sp_el0
 
@@ -200,8 +215,8 @@ serror_sp_el0:
 	 * Current EL with SPx: 0x200 - 0x400
 	 * -----------------------------------------------------
 	 */
-	.align	7
-sync_exception_sp_elx:
+
+vector_entry sync_exception_sp_elx
 	/* -----------------------------------------------------
 	 * This exception will trigger if anything went wrong
 	 * during a previous exception entry or exit or while
@@ -212,18 +227,15 @@ sync_exception_sp_elx:
 	bl	report_unhandled_exception
 	check_vector_size sync_exception_sp_elx
 
-	.align	7
-irq_sp_elx:
+vector_entry irq_sp_elx
 	bl	report_unhandled_interrupt
 	check_vector_size irq_sp_elx
 
-	.align	7
-fiq_sp_elx:
+vector_entry fiq_sp_elx
 	bl	report_unhandled_interrupt
 	check_vector_size fiq_sp_elx
 
-	.align	7
-serror_sp_elx:
+vector_entry serror_sp_elx
 	bl	report_unhandled_exception
 	check_vector_size serror_sp_elx
 
@@ -231,8 +243,7 @@ serror_sp_elx:
 	 * Lower EL using AArch64 : 0x400 - 0x600
 	 * -----------------------------------------------------
 	 */
-	.align	7
-sync_exception_aarch64:
+vector_entry sync_exception_aarch64
 	/* -----------------------------------------------------
 	 * This exception vector will be the entry point for
 	 * SMCs and traps that are unhandled at lower ELs most
@@ -244,23 +255,20 @@ sync_exception_aarch64:
 	handle_sync_exception
 	check_vector_size sync_exception_aarch64
 
-	.align	7
 	/* -----------------------------------------------------
 	 * Asynchronous exceptions from lower ELs are not
 	 * currently supported. Report their occurrence.
 	 * -----------------------------------------------------
 	 */
-irq_aarch64:
+vector_entry irq_aarch64
 	handle_interrupt_exception irq_aarch64
 	check_vector_size irq_aarch64
 
-	.align	7
-fiq_aarch64:
+vector_entry fiq_aarch64
 	handle_interrupt_exception fiq_aarch64
 	check_vector_size fiq_aarch64
 
-	.align	7
-serror_aarch64:
+vector_entry serror_aarch64
 	bl	report_unhandled_exception
 	check_vector_size serror_aarch64
 
@@ -268,8 +276,7 @@ serror_aarch64:
 	 * Lower EL using AArch32 : 0x600 - 0x800
 	 * -----------------------------------------------------
 	 */
-	.align	7
-sync_exception_aarch32:
+vector_entry sync_exception_aarch32
 	/* -----------------------------------------------------
 	 * This exception vector will be the entry point for
 	 * SMCs and traps that are unhandled at lower ELs most
@@ -281,27 +288,23 @@ sync_exception_aarch32:
 	handle_sync_exception
 	check_vector_size sync_exception_aarch32
 
-	.align	7
 	/* -----------------------------------------------------
 	 * Asynchronous exceptions from lower ELs are not
 	 * currently supported. Report their occurrence.
 	 * -----------------------------------------------------
 	 */
-irq_aarch32:
+vector_entry irq_aarch32
 	handle_interrupt_exception irq_aarch32
 	check_vector_size irq_aarch32
 
-	.align	7
-fiq_aarch32:
+vector_entry fiq_aarch32
 	handle_interrupt_exception fiq_aarch32
 	check_vector_size fiq_aarch32
 
-	.align	7
-serror_aarch32:
+vector_entry serror_aarch32
 	bl	report_unhandled_exception
 	check_vector_size serror_aarch32
 
-	.align	7
 
 	/* -----------------------------------------------------
 	 * The following code handles secure monitor calls.

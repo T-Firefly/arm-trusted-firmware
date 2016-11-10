@@ -76,8 +76,7 @@
 
 #define PLAT_MAX_PWR_LVL		MPIDR_AFFLVL2
 
-#define PLATFORM_CLST_TO_CPUID_SHIFT	6
-
+#define PLAT_RK_CLST_TO_CPUID_SHIFT	8
 
 /*
  * This macro defines the deepest retention state possible. A higher state

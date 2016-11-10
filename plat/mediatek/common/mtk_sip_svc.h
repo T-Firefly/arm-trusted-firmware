@@ -42,19 +42,27 @@
 #define MTK_SIP_SVC_VERSION_MAJOR	0x0
 #define MTK_SIP_SVC_VERSION_MINOR	0x1
 
+#define SMC_AARCH64_BIT		0x40000000
+
 /* Number of Mediatek SiP Calls implemented */
-#define MTK_SIP_NUM_CALLS		4
+#define MTK_COMMON_SIP_NUM_CALLS	4
 
 /* Mediatek SiP Service Calls function IDs */
 #define MTK_SIP_SET_AUTHORIZED_SECURE_REG	0x82000001
-#define MTK_SIP_PWR_ON_MTCMOS			0x82000402
-#define MTK_SIP_PWR_OFF_MTCMOS			0x82000403
-#define MTK_SIP_PWR_MTCMOS_SUPPORT		0x82000404
+
+/* For MTK SMC from Secure OS */
+/* 0x82000000 - 0x820000FF & 0xC2000000 - 0xC20000FF */
+#define MTK_SIP_KERNEL_BOOT_AARCH32		0x82000200
+#define MTK_SIP_KERNEL_BOOT_AARCH64		0xC2000200
 
 /* Mediatek SiP Calls error code */
 enum {
 	MTK_SIP_E_SUCCESS = 0,
-	MTK_SIP_E_INVALID_PARAM = -1
+	MTK_SIP_E_INVALID_PARAM = -1,
+	MTK_SIP_E_NOT_SUPPORTED = -2,
+	MTK_SIP_E_INVALID_RANGE = -3,
+	MTK_SIP_E_PERMISSION_DENY = -4,
+	MTK_SIP_E_LOCK_FAIL = -5
 };
 
 /*
@@ -65,7 +73,5 @@ enum {
  * Return MTK_SIP_E_SUCCESS on success, and MTK_SIP_E_INVALID_PARAM on failure.
  */
 uint64_t mt_sip_set_authorized_sreg(uint32_t sreg, uint32_t val);
-uint64_t mt_sip_pwr_on_mtcmos(uint32_t val);
-uint64_t mt_sip_pwr_off_mtcmos(uint32_t val);
-uint64_t mt_sip_pwr_mtcmos_support(void);
+
 #endif /* __PLAT_SIP_SVC_H__ */

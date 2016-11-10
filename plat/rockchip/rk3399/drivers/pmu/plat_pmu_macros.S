@@ -27,10 +27,9 @@
 #include <arch.h>
 #include <asm_macros.S>
 #include <platform_def.h>
+#include <pmu_regs.h>
 
 	.globl	clst_warmboot_data
-	.globl	pmu_ddr_suspend
-	.globl	pmu_ddr_resume
 
 	.macro sram_func _name
 	.section .sram.text, "ax"
@@ -38,6 +37,14 @@
 	.func \_name
 	\_name:
 	.endm
+
+#define CRU_CLKSEL_CON6	0x118
+
+#define DDRCTL0_C_SYSREQ_CFG 0x0100
+#define DDRCTL1_C_SYSREQ_CFG 0x1000
+
+#define DDRC0_SREF_DONE_EXT 0x01
+#define DDRC1_SREF_DONE_EXT 0x04
 
 #define PLL_MODE_SHIFT	(0x8)
 #define PLL_NORMAL_MODE	((0x3 << (PLL_MODE_SHIFT + 16)) | \
@@ -75,78 +82,74 @@ clst_warmboot_data:
 	.endr
 .endm
 
-sram_func pmu_ddr_suspend
-	mov	x5, PMU_BASE
-	ldr	w0, [x5, #0x0024]
-	bic	w0, w0, #0x1000
-	bic	w0, w0, #0x0100
-	ldr	w0, [x5, #0x0024]
-	orr	w0, w0, #0x1000
-	orr	w0, w0, #0x0100
-	str	w0, [x5, #0x0024]
-loop_1:
-	ldr	w1, [x5, #0x0098]
-	and	w2, w1, #0x01
-	and	w3, w1, #0x04
-	orr	w2, w2, w3
-	cmp	w2, #0x5
-	b.eq	loop_1
+	/* -----------------------------------------------
+	 * void sram_func_set_ddrctl_pll(uint32_t pll_src)
+	 * Function to switch the PLL source for ddrctrl
+	 * In: x0 - The PLL of the clk_ddrc clock source
+	 * out: None
+	 * Clobber list : x0 - x3, x5, x8 - x10
+	 * -----------------------------------------------
+	 */
 
-	mov	x5, CRU_BASE
-	ldr	w0, [x5, #0x0118]
-	bic	w0, w0, #0x00000030
-	orr	w0, w0, #0x00300000
-	orr	w0, w0, #0x00000010
-	str	w0, [x5, #0x0118]
+	.globl	sram_func_set_ddrctl_pll
+
+sram_func sram_func_set_ddrctl_pll
+	/* backup parameter */
+	mov	x8, x0
+
+	/* disable the MMU at EL3 */
+	mrs 	x9, sctlr_el3
+	bic	x10, x9, #(SCTLR_M_BIT)
+	msr 	sctlr_el3, x10
+	isb
+	dsb 	sy
+
+	/* enable ddrctl0_1 idle request */
 	mov	x5, PMU_BASE
-	ldr	w0, [x5, #0x0024]
-	bic	w0, w0, #0x1000
-	bic	w0, w0, #0x0100
-	str	w0, [x5, #0x0024]
-loop_2:
-	ldr	w1, [x5, #0x0098]
-	and	w2, w1, #0x01
-	and	w3, w1, #0x04
+	ldr	w0, [x5, #PMU_SFT_CON]
+	orr	w0, w0, #DDRCTL0_C_SYSREQ_CFG
+	orr	w0, w0, #DDRCTL1_C_SYSREQ_CFG
+	str	w0, [x5, #PMU_SFT_CON]
+
+check_ddrc0_1_sref_enter:
+	ldr	w1, [x5, #PMU_DDR_SREF_ST]
+	and	w2, w1, #DDRC0_SREF_DONE_EXT
+	and	w3, w1, #DDRC1_SREF_DONE_EXT
+	orr	w2, w2, w3
+	cmp	w2, #(DDRC0_SREF_DONE_EXT | DDRC1_SREF_DONE_EXT)
+	b.eq	check_ddrc0_1_sref_enter
+
+	/*
+	 * select a PLL for ddrctrl:
+	 * x0 = 0: ALPLL
+	 * x0 = 1: ABPLL
+	 * x0 = 2: DPLL
+	 * x0 = 3: GPLLL
+	 */
+	mov     x5, CRU_BASE
+	lsl	w0, w8, #4
+	orr	w0, w0, #0x00300000
+	str 	w0, [x5, #CRU_CLKSEL_CON6]
+
+	/* disable ddrctl0_1 idle request */
+	mov	x5, PMU_BASE
+	ldr	w0, [x5, #PMU_SFT_CON]
+	bic	w0, w0, #DDRCTL0_C_SYSREQ_CFG
+	bic	w0, w0, #DDRCTL1_C_SYSREQ_CFG
+	str	w0, [x5, #PMU_SFT_CON]
+
+check_ddrc0_1_sref_exit:
+	ldr	w1, [x5, #PMU_DDR_SREF_ST]
+	and	w2, w1, #DDRC0_SREF_DONE_EXT
+	and	w3, w1, #DDRC1_SREF_DONE_EXT
 	orr	w2, w2, w3
 	cmp	w2, #0x0
-	b.eq	loop_2
-	ret
-endfunc pmu_ddr_suspend
+	b.eq	check_ddrc0_1_sref_exit
 
-sram_func pmu_ddr_resume
-	mov	x5, PMU_BASE
-	ldr	w0, [x5, #0x0024]
-	bic	w0, w0, #0x1000
-	bic	w0, w0, #0x0100
-	ldr	w0, [x5, #0x0024]
-	orr	w0, w0, #0x1000
-	orr	w0, w0, #0x0100
-	str	w0, [x5, #0x0024]
-loop_3:
-	ldr	w1, [x5, #0x0098]
-	and	w2, w1, #0x01
-	and	w3, w1, #0x04
-	orr	w2, w2, w3
-	cmp	w2, #0x5
-	b.eq	loop_3
-	mov	x5, CRU_BASE
-	ldr	w0, [x5, #0x0118]
-	bic	w0, w0, #0x00000030
-	orr	w0, w0, #0x00300000
-	orr	w0, w0, #0x00000020
-	str	w0, [x5, #0x0118]
-	mov	x5, PMU_BASE
-	ldr	w0, [x5, #0x0024]
-	bic	w0, w0, #0x1000
-	bic	w0, w0, #0x0100
-	str	w0, [x5, #0x0024]
-loop_4:
-	ldr	w1, [x5, #0x0098]
-	and	w2, w1, #0x01
-	and	w3, w1, #0x04
-	orr	w2, w2, w3
-	cmp	w2, #0x0
-	b.eq	loop_4
-	ret
-endfunc pmu_ddr_resume
+	/* reenable the MMU at EL3 */
+	msr 	sctlr_el3, x9
+	isb
+	dsb 	sy
 
+	ret
+endfunc sram_func_set_ddrctl_pll

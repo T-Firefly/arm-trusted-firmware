@@ -90,6 +90,10 @@
 #define PLAT_ARM_CCI_CLUSTER0_SL_IFACE_IX	3
 #define PLAT_ARM_CCI_CLUSTER1_SL_IFACE_IX	4
 
+/* CCN related constants. Only CCN 502 is currently supported */
+#define PLAT_ARM_CCN_BASE		0x2e000000
+#define PLAT_ARM_CLUSTER_TO_CCN_ID_MAP	1, 5, 7, 11
+
 /* System timer related constants */
 #define PLAT_ARM_NSTIMER_FRAME_ID		1
 
@@ -113,7 +117,7 @@
  * would normally use the default ID so allow that too.
  */
 #define PLAT_ARM_TZC_BASE		0x2a4a0000
-#define PLAT_ARM_TZC_FILTERS		REG_ATTR_FILTER_BIT(0)
+#define PLAT_ARM_TZC_FILTERS		TZC_400_REGION_ATTR_FILTER_BIT(0)
 
 #define PLAT_ARM_TZC_NS_DEV_ACCESS	(				\
 		TZC_REGION_ACCESS_RDWR(FVP_NSAID_DEFAULT)	|	\
@@ -141,27 +145,5 @@
 					FVP_IRQ_SEC_SYS_TIMER
 
 #define PLAT_ARM_G0_IRQS		ARM_G0_IRQS
-
-/*
- * PLAT_ARM_MAX_BL1_RW_SIZE is calculated using the current BL1 RW debug size
- * plus a little space for growth.
- */
-#define PLAT_ARM_MAX_BL1_RW_SIZE	0xA000
-
-/*
- * PLAT_ARM_MAX_BL2_SIZE is calculated using the current BL2 debug size plus a
- * little space for growth.
- */
-#if TRUSTED_BOARD_BOOT
-# define PLAT_ARM_MAX_BL2_SIZE		0x1D000
-#else
-# define PLAT_ARM_MAX_BL2_SIZE		0xC000
-#endif
-
-/*
- * PLAT_ARM_MAX_BL31_SIZE is calculated using the current BL31 debug size plus a
- * little space for growth.
- */
-#define PLAT_ARM_MAX_BL31_SIZE		0x1D000
 
 #endif /* __PLATFORM_DEF_H__ */

@@ -27,6 +27,22 @@
 #ifndef __PLAT_SIP_CALLS_H__
 #define __PLAT_SIP_CALLS_H__
 
+#define CONFIG_DRAM_INIT	0x00
+#define CONFIG_DRAM_SET_RATE	0x01
+#define CONFIG_DRAM_ROUND_RATE	0x02
+#define CONFIG_DRAM_SET_AT_SR	0x03
+#define CONFIG_DRAM_GET_BW	0x04
+#define CONFIG_DRAM_GET_RATE	0x05
+#define CONFIG_DRAM_CLR_IRQ	0x06
+#define CONFIG_DRAM_SET_PARAM	0x07
+
+int suspend_mode_handler(uint64_t mode_id, uint64_t config1, uint64_t config2);
+void fiq_disable_flag(uint32_t cpu_id);
+void fiq_enable_flag(uint32_t cpu_id);
+uint32_t get_uart_irq_id(void);
+uint64_t fiq_debugger_smc_handler(uint64_t fun_id, void *handle,
+				  uint64_t arg0, uint64_t arg1);
+
 #define RK_PLAT_SIP_NUM_CALLS	4
 
 #endif /* __PLAT_SIP_CALLS_H__ */

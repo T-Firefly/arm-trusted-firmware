@@ -14,8 +14,10 @@ Contents :
 9.  [Memory layout of BL images](#9-memory-layout-of-bl-images)
 10. [Firmware Image Package (FIP)](#10--firmware-image-package-fip)
 11. [Use of coherent memory in Trusted Firmware](#11--use-of-coherent-memory-in-trusted-firmware)
-12. [Code Structure](#12--code-structure)
-13. [References](#13--references)
+12. [Isolating code and read-only data on separate memory pages](#12--isolating-code-and-read-only-data-on-separate-memory-pages)
+13. [Performance Measurement Framework](#13--performance-measurement-framework)
+14. [Code Structure](#14--code-structure)
+15. [References](#15--references)
 
 
 1.  Introduction
@@ -40,6 +42,9 @@ interrupts generated in either security state. The details of the interrupt
 management framework and its design can be found in [ARM Trusted
 Firmware Interrupt Management Design guide][INTRG] [4].
 
+The ARM Trusted Firmware can be built to support either AArch64 or AArch32
+execution state.
+
 2.  Cold boot
 -------------
 
@@ -54,13 +59,21 @@ the primary CPU has performed enough initialization to boot them.
 Refer to the [Reset Design] for more information on the effect of the
 `COLD_BOOT_SINGLE_CPU` platform build option.
 
-The cold boot path in this implementation of the ARM Trusted Firmware is divided
-into five steps (in order of execution):
+The cold boot path in this implementation of the ARM Trusted Firmware,
+depends on the execution state.
+For AArch64, it is divided into five steps (in order of execution):
 
 *   Boot Loader stage 1 (BL1) _AP Trusted ROM_
 *   Boot Loader stage 2 (BL2) _Trusted Boot Firmware_
-*   Boot Loader stage 3-1 (BL31) _EL3 Runtime Firmware_
+*   Boot Loader stage 3-1 (BL31) _EL3 Runtime Software_
 *   Boot Loader stage 3-2 (BL32) _Secure-EL1 Payload_ (optional)
+*   Boot Loader stage 3-3 (BL33) _Non-trusted Firmware_
+
+For AArch32, it is divided into four steps (in order of execution):
+
+*   Boot Loader stage 1 (BL1) _AP Trusted ROM_
+*   Boot Loader stage 2 (BL2) _Trusted Boot Firmware_
+*   Boot Loader stage 3-2 (BL32) _EL3 Runtime Software_
 *   Boot Loader stage 3-3 (BL33) _Non-trusted Firmware_
 
 ARM development platforms (Fixed Virtual Platforms (FVPs) and Juno) implement a
@@ -79,8 +92,9 @@ one or more of these memory regions.
 The sections below provide the following details:
 
 *   initialization and execution of the first three stages during cold boot
-*   specification of the BL31 entrypoint requirements for use by alternative
-    Trusted Boot Firmware in place of the provided BL1 and BL2
+*   specification of the EL3 Runtime Software (BL31 for AArch64 and BL32 for
+    AArch32) entrypoint requirements for use by alternative Trusted Boot
+    Firmware in place of the provided BL1 and BL2
 
 
 ### BL1
@@ -118,10 +132,11 @@ BL1 performs minimal architectural initialization as follows.
 
     BL1 sets up simple exception vectors for both synchronous and asynchronous
     exceptions. The default behavior upon receiving an exception is to populate
-    a status code in the general purpose register `X0` and call the
+    a status code in the general purpose register `X0/R0` and call the
     `plat_report_exception()` function (see the [Porting Guide]). The status
     code is one of:
 
+    For AArch64:
         0x0 : Synchronous exception from Current EL with SP_EL0
         0x1 : IRQ exception from Current EL with SP_EL0
         0x2 : FIQ exception from Current EL with SP_EL0
@@ -139,12 +154,24 @@ BL1 performs minimal architectural initialization as follows.
         0xe : FIQ exception from Lower EL using aarch32
         0xf : System Error exception from Lower EL using aarch32
 
+    For AArch32:
+        0x10 : User mode
+        0x11 : FIQ mode
+        0x12 : IRQ mode
+        0x13 : SVC mode
+        0x16 : Monitor mode
+        0x17 : Abort mode
+        0x1a : Hypervisor mode
+        0x1b : Undefined mode
+        0x1f : System mode
+
     The `plat_report_exception()` implementation on the ARM FVP port programs
     the Versatile Express System LED register in the following format to
     indicate the occurence of an unexpected exception:
 
         SYS_LED[0]   - Security state (Secure=0/Non-Secure=1)
         SYS_LED[2:1] - Exception Level (EL3=0x3, EL2=0x2, EL1=0x1, EL0=0x0)
+                       For AArch32 it is always 0x0
         SYS_LED[7:3] - Exception Class (Sync/Async & origin). This is the value
                        of the status code
 
@@ -154,11 +181,12 @@ BL1 performs minimal architectural initialization as follows.
     BL1 does not expect to receive any exceptions other than the SMC exception.
     For the latter, BL1 installs a simple stub. The stub expects to receive a
     limited set of SMC types (determined by their function IDs in the general
-    purpose register `X0`):
+    purpose register `X0/R0`):
     -   `BL1_SMC_RUN_IMAGE`: This SMC is raised by BL2 to make BL1 pass control
-        to BL31 (loaded by BL2) at EL3.
+        to EL3 Runtime Software.
     -   All SMCs listed in section "BL1 SMC Interface" in the [Firmware Update]
-        Design Guide.
+        Design Guide are supported for AArch64 only. These SMCs are currently
+        not supported when BL1 is built for AArch32.
 
     Any other SMC leads to an assertion failure.
 
@@ -168,7 +196,7 @@ BL1 performs minimal architectural initialization as follows.
     specific reset handler function (see the section: "CPU specific operations
     framework").
 
-*   Control register setup
+*   Control register setup (for AArch64)
     -   `SCTLR_EL3`. Instruction cache is enabled by setting the `SCTLR_EL3.I`
         bit. Alignment and stack alignment checking is enabled by setting the
         `SCTLR_EL3.A` and `SCTLR_EL3.SA` bits. Exception endianness is set to
@@ -176,7 +204,9 @@ BL1 performs minimal architectural initialization as follows.
 
     -  `SCR_EL3`. The register width of the next lower exception level is set
         to AArch64 by setting the `SCR.RW` bit. The `SCR.EA` bit is set to trap
-        both External Aborts and SError Interrupts in EL3.
+        both External Aborts and SError Interrupts in EL3. The `SCR.SIF` bit is
+        also set to disable instruction fetches from Non-secure memory when in
+        secure state.
 
     -   `CPTR_EL3`. Accesses to the `CPACR_EL1` register from EL1 or EL2, or the
         `CPTR_EL2` register from EL2 are configured to not trap to EL3 by
@@ -188,6 +218,29 @@ BL1 performs minimal architectural initialization as follows.
 
     -   `DAIF`. The SError interrupt is enabled by clearing the SError interrupt
         mask bit.
+
+*   Control register setup (for AArch32)
+    -   `SCTLR`. Instruction cache is enabled by setting the `SCTLR.I` bit.
+        Alignment checking is enabled by setting the `SCTLR.A` bit.
+        Exception endianness is set to little-endian by clearing the
+        `SCTLR.EE` bit.
+
+    -   `SCR`. The `SCR.SIF` bit is set to disable instruction fetches from
+        Non-secure memory when in secure state.
+
+    -   `CPACR`. Allow execution of Advanced SIMD instructions at PL0 and PL1,
+        by clearing the `CPACR.ASEDIS` bit. Access to the trace functionality
+        is configured not to trap to undefined mode by clearing the
+        `CPACR.TRCDIS` bit.
+
+    -   `NSACR`. Enable non-secure access to Advanced SIMD functionality and
+        system register access to implemented trace registers.
+
+    -   `FPEXC`. Enable access to the Advanced SIMD and floating-point
+        functionality from all Exception levels.
+
+    -   `CPSR.A`. The Asynchronous data abort interrupt is enabled by clearing
+        the Asynchronous data abort interrupt mask bit.
 
 #### Platform initialization
 
@@ -230,14 +283,13 @@ In the normal boot flow, BL1 execution continues as follows:
 
         "Failed to load BL2 firmware."
 
-    If the load is successful, BL1 updates the limits of the remaining free
-    trusted SRAM. It also populates information about the amount of trusted
-    SRAM used by the BL2 image. The exact load location of the image is
-    provided as a base address in the platform header. Further description of
-    the memory layout can be found later in this document.
+    BL1 calculates the amount of Trusted SRAM that can be used by the BL2
+    image. The exact load location of the image is provided as a base address
+    in the platform header. Further description of the memory layout can be
+    found later in this document.
 
-3.  BL1 passes control to the BL2 image at Secure EL1, starting from its load
-    address.
+3.  BL1 passes control to the BL2 image at Secure EL1 (for AArch64) or  at
+    Secure SVC mode (for AArch32), starting from its load address.
 
 4.  BL1 also passes information about the amount of trusted SRAM used and
     available for use. This information is populated at a platform-specific
@@ -246,16 +298,21 @@ In the normal boot flow, BL1 execution continues as follows:
 
 ### BL2
 
-BL1 loads and passes control to BL2 at Secure-EL1. BL2 is linked against and
-loaded at a platform-specific base address (more information can be found later
-in this document). The functionality implemented by BL2 is as follows.
+BL1 loads and passes control to BL2 at Secure-EL1 (for AArch64) or at Secure
+SVC mode (for AArch32) . BL2 is linked against and loaded at a platform-specific
+base address (more information can be found later in this document).
+The functionality implemented by BL2 is as follows.
 
 #### Architectural initialization
 
-BL2 performs minimal architectural initialization required for subsequent
-stages of the ARM Trusted Firmware and normal world software. EL1 and EL0 are
-given access to Floating Point & Advanced SIMD registers by clearing the
-`CPACR.FPEN` bits.
+For AArch64, BL2 performs the minimal architectural initialization required
+for subsequent stages of the ARM Trusted Firmware and normal world software.
+EL1 and EL0 are given access to Floating Point and Advanced SIMD registers
+by clearing the `CPACR.FPEN` bits.
+
+For AArch32, the minimal architectural initialization required for subsequent
+stages of the ARM Trusted Firmware and normal world software is taken care of
+in BL1 as both BL1 and BL2 execute at PL1.
 
 #### Platform initialization
 
@@ -267,9 +324,19 @@ On ARM platforms, BL2 performs the following platform initializations:
 *   Enable the MMU and map the memory it needs to access.
 *   Perform platform security setup to allow access to controlled components.
 *   Reserve some memory for passing information to the next bootloader image
-    (BL31) and populate it.
+    EL3 Runtime Software and populate it.
 *   Define the extents of memory available for loading each subsequent
     bootloader image.
+
+#### Image loading in BL2
+
+Image loading scheme in BL2 depends on `LOAD_IMAGE_V2` build option. If the
+flag is disabled, the BLxx images are loaded, by calling the respective
+load_blxx() function from BL2 generic code. If the flag is enabled, the BL2
+generic code loads the images based on the list of loadable images provided
+by the platform. BL2 passes the list of executable images provided by the
+platform to the next handover BL image. By default, this flag is disabled for
+AArch64 and the AArch32 build is supported only if this flag is enabled.
 
 #### SCP_BL2 (System Control Processor Firmware) image load
 
@@ -282,15 +349,16 @@ using the Boot Over MHU (BOM) protocol after being loaded in the trusted SRAM
 memory. The SCP executes SCP_BL2 and signals to the Application Processor (AP)
 for BL2 execution to continue.
 
-#### BL31 (EL3 Runtime Firmware) image load
+#### EL3 Runtime Software image load
 
-BL2 loads the BL31 image from platform storage into a platform-specific address
-in trusted SRAM. If there is not enough memory to load the image or image is
-missing it leads to an assertion failure. If the BL31 image loads successfully,
-BL2 updates the amount of trusted SRAM used and available for use by BL31.
-This information is populated at a platform-specific memory address.
+BL2 loads the EL3 Runtime Software image from platform storage into a platform-
+specific address in trusted SRAM. If there is not enough memory to load the
+image or image is missing it leads to an assertion failure. If `LOAD_IMAGE_V2`
+is disabled and if image loads successfully, BL2 updates the amount of trusted
+SRAM used and available for use by EL3 Runtime Software. This information is
+populated at a platform-specific memory address.
 
-#### BL32 (Secure-EL1 Payload) image load
+#### AArch64 BL32 (Secure-EL1 Payload) image load
 
 BL2 loads the optional BL32 image from platform storage into a platform-
 specific region of secure memory. The image executes in the secure world. BL2
@@ -306,14 +374,14 @@ managing interaction with BL32. This information is passed to BL31.
 BL2 loads the BL33 image (e.g. UEFI or other test or boot software) from
 platform storage into non-secure memory as defined by the platform.
 
-BL2 relies on BL31 to pass control to BL33 once secure state initialization is
-complete. Hence, BL2 populates a platform-specific area of memory with the
-entrypoint and Saved Program Status Register (`SPSR`) of the normal world
-software image. The entrypoint is the load address of the BL33 image. The
-`SPSR` is determined as specified in Section 5.13 of the [PSCI PDD] [PSCI]. This
-information is passed to BL31.
+BL2 relies on EL3 Runtime Software to pass control to BL33 once secure state
+initialization is complete. Hence, BL2 populates a platform-specific area of
+memory with the entrypoint and Saved Program Status Register (`SPSR`) of the
+normal world software image. The entrypoint is the load address of the BL33
+image. The `SPSR` is determined as specified in Section 5.13 of the [PSCI PDD]
+[PSCI]. This information is passed to the EL3 Runtime Software.
 
-#### BL31 (EL3 Runtime Firmware) execution
+#### AArch64 BL31 (EL3 Runtime Software) execution
 
 BL2 execution continues as follows:
 
@@ -328,7 +396,7 @@ BL2 execution continues as follows:
 3.  BL1 passes control to BL31 at the specified entrypoint at EL3.
 
 
-### BL31
+### AArch64 BL31
 
 The image for this stage is loaded by BL2 and BL1 passes control to BL31 at
 EL3. BL31 executes solely in trusted SRAM. BL31 is linked against and
@@ -391,29 +459,30 @@ detail in the "EL3 runtime services framework" section below.
 Details about the status of the PSCI implementation are provided in the
 "Power State Coordination Interface" section below.
 
-#### BL32 (Secure-EL1 Payload) image initialization
+#### AArch64 BL32 (Secure-EL1 Payload) image initialization
 
 If a BL32 image is present then there must be a matching Secure-EL1 Payload
 Dispatcher (SPD) service (see later for details). During initialization
 that service must register a function to carry out initialization of BL32
 once the runtime services are fully initialized. BL31 invokes such a
-registered function to initialize BL32 before running BL33.
+registered function to initialize BL32 before running BL33. This initialization
+is not necessary for AArch32 SPs.
 
 Details on BL32 initialization and the SPD's role are described in the
 "Secure-EL1 Payloads and Dispatchers" section below.
 
 #### BL33 (Non-trusted Firmware) execution
 
-BL31 initializes the EL2 or EL1 processor context for normal-world cold
-boot, ensuring that no secure state information finds its way into the
-non-secure execution state. BL31 uses the entrypoint information provided
-by BL2 to jump to the Non-trusted firmware image (BL33) at the highest
-available Exception Level (EL2 if available, otherwise EL1).
+EL3 Runtime Software initializes the EL2 or EL1 processor context for normal-
+world cold boot, ensuring that no secure state information finds its way into
+the non-secure execution state. EL3 Runtime Software uses the entrypoint
+information provided by BL2 to jump to the Non-trusted firmware image (BL33)
+at the highest available Exception Level (EL2 if available, otherwise EL1).
 
-### Using alternative Trusted Boot Firmware in place of BL1 and BL2
+### Using alternative Trusted Boot Firmware in place of BL1 & BL2 (AArch64 only)
 
 Some platforms have existing implementations of Trusted Boot Firmware that
-would like to use ARM Trusted Firmware BL31 for the EL3 Runtime Firmware. To
+would like to use ARM Trusted Firmware BL31 for the EL3 Runtime Software. To
 enable this firmware architecture it is important to provide a fully documented
 and stable interface between the Trusted Boot Firmware and BL31.
 
@@ -518,6 +587,85 @@ The PSCI implementation will initialize the processor state and ensure that the
 platform power management code is then invoked as required to initialize all
 necessary system, cluster and CPU resources.
 
+### AArch32 EL3 Runtime Software entrypoint interface
+
+To enable this firmware architecture it is important to provide a fully
+documented and stable interface between the Trusted Boot Firmware and the
+AArch32 EL3 Runtime Software.
+
+Future changes to the entrypoint interface will be done in a backwards
+compatible way, and this enables these firmware components to be independently
+enhanced/updated to develop and exploit new functionality.
+
+#### Required CPU state when entering during cold boot
+
+This function must only be called by the primary CPU.
+
+On entry to this function the calling primary CPU must be executing in AArch32
+EL3, little-endian data access, and all interrupt sources masked:
+
+    PSTATE.AIF = 0x7
+    SCTLR.EE = 0
+
+R0 and R1 are used to pass information from the Trusted Boot Firmware to the
+platform code in AArch32 EL3 Runtime Software:
+
+    R0 : Reserved for common Trusted Firmware information
+    R1 : Platform specific information
+
+##### Use of the R0 and R1 parameters
+
+The parameters are platform specific and the convention is that `R0` conveys
+information regarding the BL3x images from the Trusted Boot firmware and `R1`
+can be used for other platform specific purpose. This convention allows
+platforms which use ARM Trusted Firmware's BL1 and BL2 images to transfer
+additional platform specific information from Secure Boot without conflicting
+with future evolution of the Trusted Firmware using `R0` to pass a `bl_params`
+structure.
+
+The AArch32 EL3 Runtime Software is responsible for entry into BL33. This
+information can be obtained in a platform defined manner, e.g. compiled into
+the AArch32 EL3 Runtime Software, or provided in a platform defined memory
+location by the Trusted Boot firmware, or passed from the Trusted Boot Firmware
+via the Cold boot Initialization parameters. This data may need to be cleaned
+out of the CPU caches if it is provided by an earlier boot stage and then
+accessed by AArch32 EL3 Runtime Software before the caches are enabled.
+
+When using AArch32 EL3 Runtime Software, the ARM development platforms pass a
+`bl_params` structure in `R0` from BL2 to be interpreted by AArch32 EL3 Runtime
+Software platform code.
+
+##### MMU, Data caches & Coherency
+
+AArch32 EL3 Runtime Software must not depend on the enabled state of the MMU,
+data caches or interconnect coherency in its entrypoint. They must be explicitly
+enabled if required.
+
+##### Data structures used in cold boot interface
+
+The AArch32 EL3 Runtime Software cold boot interface uses `bl_params` instead
+of `bl31_params`. The `bl_params` structure is based on the convention
+described in AArch64 BL31 cold boot interface section.
+
+#### Required CPU state for warm boot initialization
+
+When requesting a CPU power-on, or suspending a running CPU, AArch32 EL3
+Runtime Software must ensure execution of a warm boot initialization entrypoint.
+If ARM Trusted Firmware BL1 is used and the PROGRAMMABLE_RESET_ADDRESS build
+flag is false, then AArch32 EL3 Runtime Software must ensure that BL1 branches
+to the warm boot entrypoint by arranging for the BL1 platform function,
+plat_get_my_entrypoint(), to return a non-zero value.
+
+In this case, the warm boot entrypoint must be in AArch32 EL3, little-endian
+data access and all interrupt sources masked:
+
+    PSTATE.AIF = 0x7
+    SCTLR.EE = 0
+
+The warm boot entrypoint may be implemented by using the ARM Trusted Firmware
+`psci_warmboot_entrypoint()` function. In that case, the platform must fulfil
+the pre-requisites mentioned in the [PSCI Library integration guide]
+[PSCI Lib guide].
 
 3.  EL3 runtime services framework
 ----------------------------------
@@ -533,7 +681,7 @@ The EL3 runtime services framework enables the development of services by
 different providers that can be easily integrated into final product firmware.
 The following sections describe the framework which facilitates the
 registration, initialization and use of runtime services in EL3 Runtime
-Firmware (BL31).
+Software (BL31).
 
 The design of the runtime services depends heavily on the concepts and
 definitions described in the [SMCCC], in particular SMC Function IDs, Owning
@@ -559,7 +707,7 @@ not all been instantiated in the current implementation.
     [SMCCC] provides for such SMCs with the Trusted OS Call and Trusted
     Application Call OEN ranges.
 
-    The interface between the EL3 Runtime Firmware and the Secure-EL1 Payload is
+    The interface between the EL3 Runtime Software and the Secure-EL1 Payload is
     not defined by the [SMCCC] or any other standard. As a result, each
     Secure-EL1 Payload requires a specific Secure Monitor that runs as a runtime
     service - within ARM Trusted Firmware this service is referred to as the
@@ -713,17 +861,22 @@ required support.
 |`PSCI_FEATURES`        | Yes     |                                           |
 |`CPU_FREEZE`           | No      |                                           |
 |`CPU_DEFAULT_SUSPEND`  | No      |                                           |
-|`CPU_HW_STATE`         | No      |                                           |
+|`NODE_HW_STATE`        | Yes*    |                                           |
 |`SYSTEM_SUSPEND`       | Yes*    |                                           |
 |`PSCI_SET_SUSPEND_MODE`| No      |                                           |
-|`PSCI_STAT_RESIDENCY`  | No      |                                           |
-|`PSCI_STAT_COUNT`      | No      |                                           |
+|`PSCI_STAT_RESIDENCY`  | Yes*    |                                           |
+|`PSCI_STAT_COUNT`      | Yes*    |                                           |
 
 *Note : These PSCI APIs require platform power management hooks to be
 registered with the generic PSCI code to be supported.
 
 **Note : These PSCI APIs require appropriate Secure Payload Dispatcher
 hooks to be registered with the generic PSCI code to be supported.
+
+The PSCI implementation in ARM Trusted Firmware is a library which can be
+integrated with AArch64 or AArch32 EL3 Runtime Software for ARMv8-A systems.
+A guide to integrating PSCI library with AArch32 EL3 Runtime Software
+can be found [here][PSCI Lib guide].
 
 
 5.  Secure-EL1 Payloads and Dispatchers
@@ -1050,10 +1203,10 @@ Each bootloader image can be divided in 2 parts:
 All PROGBITS sections are grouped together at the beginning of the image,
 followed by all NOBITS sections. This is true for all Trusted Firmware images
 and it is governed by the linker scripts. This ensures that the raw binary
-images are as small as possible. If a NOBITS section would sneak in between
-PROGBITS sections then the resulting binary file would contain a bunch of zero
-bytes at the location of this NOBITS section, making the image unnecessarily
-bigger. Smaller images allow faster loading from the FIP to the main memory.
+images are as small as possible. If a NOBITS section was inserted in between
+PROGBITS sections then the resulting binary file would contain zero bytes in
+place of this NOBITS section, making the image unnecessarily bigger. Smaller
+images allow faster loading from the FIP to the main memory.
 
 ### Linker scripts and symbols
 
@@ -1108,47 +1261,48 @@ layout as they are easy to spot in the link map files.
 
 #### Common linker symbols
 
-Early setup code needs to know the extents of the BSS section to zero-initialise
-it before executing any C code. The following linker symbols are defined for
-this purpose:
+All BL images share the following requirements:
 
-* `__BSS_START__` This address must be aligned on a 16-byte boundary.
-* `__BSS_SIZE__`
+*   The BSS section must be zero-initialised before executing any C code.
+*   The coherent memory section (if enabled) must be zero-initialised as well.
+*   The MMU setup code needs to know the extents of the coherent and read-only
+    memory regions to set the right memory attributes. When
+    `SEPARATE_CODE_AND_RODATA=1`, it needs to know more specifically how the
+    read-only memory region is divided between code and data.
 
-Similarly, the coherent memory section (if enabled) must be zero-initialised.
-Also, the MMU setup code needs to know the extents of this section to set the
-right memory attributes for it. The following linker symbols are defined for
-this purpose:
+The following linker symbols are defined for this purpose:
 
-* `__COHERENT_RAM_START__` This address must be aligned on a page-size boundary.
-* `__COHERENT_RAM_END__` This address must be aligned on a page-size boundary.
-* `__COHERENT_RAM_UNALIGNED_SIZE__`
+*   `__BSS_START__`          Must be aligned on a 16-byte boundary.
+*   `__BSS_SIZE__`
+*   `__COHERENT_RAM_START__` Must be aligned on a page-size boundary.
+*   `__COHERENT_RAM_END__`   Must be aligned on a page-size boundary.
+*   `__COHERENT_RAM_UNALIGNED_SIZE__`
+*   `__RO_START__`
+*   `__RO_END__`
+*   `__TEXT_START__`
+*   `__TEXT_END__`
+*   `__RODATA_START__`
+*   `__RODATA_END__`
 
 #### BL1's linker symbols
 
-BL1's early setup code needs to know the extents of the .data section to
-relocate it from ROM to RAM before executing any C code. The following linker
-symbols are defined for this purpose:
+BL1 being the ROM image, it has additional requirements. BL1 resides in ROM and
+it is entirely executed in place but it needs some read-write memory for its
+mutable data. Its `.data` section (i.e. its allocated read-write data) must be
+relocated from ROM to RAM before executing any C code.
 
-* `__DATA_ROM_START__` This address must be aligned on a 16-byte boundary.
-* `__DATA_RAM_START__` This address must be aligned on a 16-byte boundary.
-* `__DATA_SIZE__`
+The following additional linker symbols are defined for BL1:
 
-BL1's platform setup code needs to know the extents of its read-write data
-region to figure out its memory layout. The following linker symbols are defined
-for this purpose:
+*   `__BL1_ROM_END__`    End address of BL1's ROM contents, covering its code
+                         and `.data` section in ROM.
+*   `__DATA_ROM_START__` Start address of the `.data` section in ROM. Must be
+                         aligned on a 16-byte boundary.
+*   `__DATA_RAM_START__` Address in RAM where the `.data` section should be
+                         copied over. Must be aligned on a 16-byte boundary.
+*   `__DATA_SIZE__`      Size of the `.data` section (in ROM or RAM).
+*   `__BL1_RAM_START__`  Start address of BL1 read-write data.
+*   `__BL1_RAM_END__`    End address of BL1 read-write data.
 
-* `__BL1_RAM_START__` This is the start address of BL1 RW data.
-* `__BL1_RAM_END__` This is the end address of BL1 RW data.
-
-#### BL2's, BL31's and TSP's linker symbols
-
-BL2, BL31 and TSP need to know the extents of their read-only section to set
-the right memory attributes for this memory region in their MMU setup code. The
-following linker symbols are defined for this purpose:
-
-* `__RO_START__`
-* `__RO_END__`
 
 ### How to choose the right base addresses for each bootloader stage image
 
@@ -1183,13 +1337,13 @@ Additionally, if the platform memory layout implies some image overlaying like
 on FVP, BL31 and TSP need to know the limit address that their PROGBITS
 sections must not overstep. The platform code must provide those.
 
-Trusted Firmware provides a mechanism to verify at boot time that the memory
-to load a new image is free to prevent overwriting a previously loaded image.
-For this mechanism to work, the platform must specify the memory available in
-the system as regions, where each region consists of base address, total size
-and the free area within it (as defined in the `meminfo_t` structure). Trusted
-Firmware retrieves these memory regions by calling the corresponding platform
-API:
+When LOAD_IMAGE_V2 is disabled, Trusted Firmware provides a mechanism to
+verify at boot time that the memory to load a new image is free to prevent
+overwriting a previously loaded image. For this mechanism to work, the platform
+must specify the memory available in the system as regions, where each region
+consists of base address, total size and the free area within it (as defined
+in the `meminfo_t` structure). Trusted Firmware retrieves these memory regions
+by calling the corresponding platform API:
 
 *   `meminfo_t *bl1_plat_sec_mem_layout(void)`
 *   `meminfo_t *bl2_plat_sec_mem_layout(void)`
@@ -1250,6 +1404,17 @@ And the following diagram is an example of an image loaded in the top part:
                +----------+
 
 
+When LOAD_IMAGE_V2 is enabled, Trusted Firmware does not provide any mechanism
+to verify at boot time that the memory to load a new image is free to prevent
+overwriting a previously loaded image. The platform must specify the memory
+available in the system for all the relevant BL images to be loaded.
+
+For example, in the case of BL1 loading BL2, `bl1_plat_sec_mem_layout()` will
+return the region defined by the platform where BL1 intends to load BL2. The
+`load_image()` function performs bounds check for the image size based on the
+base and maximum image size provided by the platforms. Platforms must take
+this behaviour into account when defining the base/size for each of the images.
+
 ####  Memory layout on ARM development platforms
 
 The following list describes the memory layout on the ARM development platforms:
@@ -1267,29 +1432,31 @@ The following list describes the memory layout on the ARM development platforms:
     Juno, BL1 resides in flash memory at address `0x0BEC0000`. BL1 read-write
     data are relocated to the top of Trusted SRAM at runtime.
 
-*   BL31 is loaded at the top of the Trusted SRAM, such that its NOBITS
-    sections will overwrite BL1 R/W data. This implies that BL1 global variables
-    remain valid only until execution reaches the BL31 entry point during
-    a cold boot.
+*   EL3 Runtime Software, BL31 for AArch64 and BL32 for AArch32 (e.g. SP_MIN),
+    is loaded at the top of the Trusted SRAM, such that its NOBITS sections will
+    overwrite BL1 R/W data. This implies that BL1 global variables remain valid
+    only until execution reaches the EL3 Runtime Software entry point during a
+    cold boot.
 
-*   BL2 is loaded below BL31.
+*   BL2 is loaded below EL3 Runtime Software.
 
-*   On Juno, SCP_BL2 is loaded temporarily into the BL31 memory region and
-    transfered to the SCP before being overwritten by BL31.
+*   On Juno, SCP_BL2 is loaded temporarily into the EL3 Runtime Software memory
+    region and transfered to the SCP before being overwritten by EL3 Runtime
+    Software.
 
-*   BL32 can be loaded in one of the following locations:
+*   BL32 (for AArch64) can be loaded in one of the following locations:
 
     *   Trusted SRAM
     *   Trusted DRAM (FVP only)
     *   Secure region of DRAM (top 16MB of DRAM configured by the TrustZone
         controller)
 
-    When BL32 is loaded into Trusted SRAM, its NOBITS sections are allowed to
-    overlay BL2. This memory layout is designed to give the BL32 image as much
-    memory as possible when it is loaded into Trusted SRAM.
+    When BL32 (for AArch64) is loaded into Trusted SRAM, its NOBITS sections
+    are allowed to overlay BL2. This memory layout is designed to give the
+    BL32 image as much memory as possible when it is loaded into Trusted SRAM.
 
-The memory regions for the overlap detection mechanism at boot time are
-defined as follows (shown per API):
+When LOAD_IMAGE_V2 is disabled the memory regions for the overlap detection
+mechanism at boot time are defined as follows (shown per API):
 
 *   `meminfo_t *bl1_plat_sec_mem_layout(void)`
 
@@ -1334,6 +1501,7 @@ Note: Loading the BL32 image in TZC secured DRAM doesn't change the memory
 layout of the other images in Trusted SRAM.
 
 **FVP with TSP in Trusted SRAM (default option):**
+(These diagrams only cover the AArch64 case)
 
                Trusted SRAM
     0x04040000 +----------+  loaded by BL2  ------------------
@@ -1509,11 +1677,16 @@ The ToC header and entry formats are described in the header file
 ARM Trusted firmware.
 
 The ToC header has the following fields:
+
     `name`: The name of the ToC. This is currently used to validate the header.
     `serial_number`: A non-zero number provided by the creation tool
-    `flags`: Flags associated with this data. None are yet defined.
+    `flags`: Flags associated with this data.
+        Bits 0-13: Reserved
+        Bits 32-47: Platform defined
+        Bits 48-63: Reserved
 
 A ToC entry has the following fields:
+
     `uuid`: All files are referred to by a pre-defined Universally Unique
         IDentifier [UUID] . The UUIDs are defined in
         `include/firmware_image_package`. The platform translates the requested
@@ -1530,7 +1703,7 @@ that can be loaded by the ARM Trusted Firmware from platform storage. The tool
 currently only supports packing bootloader images. Additional image definitions
 can be added to the tool as required.
 
-The tool can be found in `tools/fip_create`.
+The tool can be found in `tools/fiptool`.
 
 ### Loading from a Firmware Image Package (FIP)
 
@@ -1765,7 +1938,207 @@ whether coherent memory should be used. If a platform disables
 optionally define macro `PLAT_PERCPU_BAKERY_LOCK_SIZE`  (see the [Porting
 Guide]). Refer to the reference platform code for examples.
 
-12.  Code Structure
+
+12.  Isolating code and read-only data on separate memory pages
+---------------------------------------------------------------
+
+In the ARMv8 VMSA, translation table entries include fields that define the
+properties of the target memory region, such as its access permissions. The
+smallest unit of memory that can be addressed by a translation table entry is
+a memory page. Therefore, if software needs to set different permissions on two
+memory regions then it needs to map them using different memory pages.
+
+The default memory layout for each BL image is as follows:
+
+       |        ...        |
+       +-------------------+
+       |  Read-write data  |
+       +-------------------+ Page boundary
+       |     <Padding>     |
+       +-------------------+
+       | Exception vectors |
+       +-------------------+ 2 KB boundary
+       |     <Padding>     |
+       +-------------------+
+       |  Read-only data   |
+       +-------------------+
+       |       Code        |
+       +-------------------+ BLx_BASE
+
+Note: The 2KB alignment for the exception vectors is an architectural
+requirement.
+
+The read-write data start on a new memory page so that they can be mapped with
+read-write permissions, whereas the code and read-only data below are configured
+as read-only.
+
+However, the read-only data are not aligned on a page boundary. They are
+contiguous to the code. Therefore, the end of the code section and the beginning
+of the read-only data one might share a memory page. This forces both to be
+mapped with the same memory attributes. As the code needs to be executable, this
+means that the read-only data stored on the same memory page as the code are
+executable as well. This could potentially be exploited as part of a security
+attack.
+
+TF provides the build flag `SEPARATE_CODE_AND_RODATA` to isolate the code and
+read-only data on separate memory pages. This in turn allows independent control
+of the access permissions for the code and read-only data. In this case,
+platform code gets a finer-grained view of the image layout and can
+appropriately map the code region as executable and the read-only data as
+execute-never.
+
+This has an impact on memory footprint, as padding bytes need to be introduced
+between the code and read-only data to ensure the segragation of the two. To
+limit the memory cost, this flag also changes the memory layout such that the
+code and exception vectors are now contiguous, like so:
+
+       |        ...        |
+       +-------------------+
+       |  Read-write data  |
+       +-------------------+ Page boundary
+       |     <Padding>     |
+       +-------------------+
+       |  Read-only data   |
+       +-------------------+ Page boundary
+       |     <Padding>     |
+       +-------------------+
+       | Exception vectors |
+       +-------------------+ 2 KB boundary
+       |     <Padding>     |
+       +-------------------+
+       |       Code        |
+       +-------------------+ BLx_BASE
+
+With this more condensed memory layout, the separation of read-only data will
+add zero or one page to the memory footprint of each BL image. Each platform
+should consider the trade-off between memory footprint and security.
+
+This build flag is disabled by default, minimising memory footprint. On ARM
+platforms, it is enabled.
+
+
+13.  Performance Measurement Framework
+--------------------------------------
+
+The Performance Measurement Framework (PMF) facilitates collection of
+timestamps by registered services and provides interfaces to retrieve
+them from within the ARM Trusted Firmware.  A platform can choose to
+expose appropriate SMCs to retrieve these collected timestamps.
+
+By default, the global physical counter is used for the timestamp
+value and is read via `CNTPCT_EL0`.  The framework allows to retrieve
+timestamps captured by other CPUs.
+
+### Timestamp identifier format
+
+A PMF timestamp is uniquely identified across the system via the
+timestamp ID or `tid`. The `tid` is composed as follows:
+
+    Bits 0-7: The local timestamp identifier.
+    Bits 8-9: Reserved.
+    Bits 10-15: The service identifier.
+    Bits 16-31: Reserved.
+
+1.  The service identifier. Each PMF service is identified by a
+    service name and a service identifier.  Both the service name and
+    identifier are unique within the system as a whole.
+
+2.  The local timestamp identifier. This identifier is unique within a given
+    service.
+
+### Registering a PMF service
+
+To register a PMF service, the `PMF_REGISTER_SERVICE()` macro from `pmf.h`
+is used. The arguments required are the service name, the service ID,
+the total number of local timestamps to be captured and a set of flags.
+
+The `flags` field can be specified as a bitwise-OR of the following values:
+
+    PMF_STORE_ENABLE: The timestamp is stored in memory for later retrieval.
+    PMF_DUMP_ENABLE: The timestamp is dumped on the serial console.
+
+The `PMF_REGISTER_SERVICE()` reserves memory to store captured
+timestamps in a PMF specific linker section at build time.
+Additionally, it defines necessary functions to capture and
+retrieve a particular timestamp for the given service at runtime.
+
+The macro `PMF_REGISTER_SERVICE()` only enables capturing PMF
+timestamps from within ARM Trusted Firmware. In order to retrieve
+timestamps from outside of ARM Trusted Firmware, the
+`PMF_REGISTER_SERVICE_SMC()` macro must be used instead. This macro
+accepts the same set of arguments as the `PMF_REGISTER_SERVICE()`
+macro but additionally supports retrieving timestamps using SMCs.
+
+### Capturing a timestamp
+
+PMF timestamps are stored in a per-service timestamp region. On a
+system with multiple CPUs, each timestamp is captured and stored
+in a per-CPU cache line aligned memory region.
+
+Having registered the service, the `PMF_CAPTURE_TIMESTAMP()` macro can be
+used to capture a timestamp at the location where it is used.  The macro
+takes the service name, a local timestamp identifier and a flag as arguments.
+
+The `flags` field argument can be zero, or `PMF_CACHE_MAINT` which
+instructs PMF to do cache maintenance following the capture.  Cache
+maintenance is required if any of the service's timestamps are captured
+with data cache disabled.
+
+To capture a timestamp in assembly code, the caller should use
+`pmf_calc_timestamp_addr` macro (defined in `pmf_asm_macros.S`) to
+calculate the address of where the timestamp would be stored. The
+caller should then read `CNTPCT_EL0` register to obtain the timestamp
+and store it at the determined address for later retrieval.
+
+### Retrieving a timestamp
+
+From within ARM Trusted Firmware, timestamps for individual CPUs can
+be retrieved using either `PMF_GET_TIMESTAMP_BY_MPIDR()` or
+`PMF_GET_TIMESTAMP_BY_INDEX()` macros. These macros accept the CPU's MPIDR
+value, or its ordinal position, respectively.
+
+From outside ARM Trusted Firmware, timestamps for individual CPUs can be
+retrieved by calling into `pmf_smc_handler()`.
+
+    Interface : pmf_smc_handler()
+    Argument  : unsigned int smc_fid, u_register_t x1,
+                u_register_t x2, u_register_t x3,
+                u_register_t x4, void *cookie,
+                void *handle, u_register_t flags
+    Return    : uintptr_t
+
+    smc_fid: Holds the SMC identifier which is either `PMF_SMC_GET_TIMESTAMP_32`
+        when the caller of the SMC is running in AArch32 mode
+        or `PMF_SMC_GET_TIMESTAMP_64` when the caller is running in AArch64 mode.
+    x1: Timestamp identifier.
+    x2: The `mpidr` of the CPU for which the timestamp has to be retrieved.
+        This can be the `mpidr` of a different core to the one initiating
+        the SMC.  In that case, service specific cache maintenance may be
+        required to ensure the updated copy of the timestamp is returned.
+    x3: A flags value that is either 0 or `PMF_CACHE_MAINT`.  If
+        `PMF_CACHE_MAINT` is passed, then the PMF code will perform a
+        cache invalidate before reading the timestamp.  This ensures
+        an updated copy is returned.
+
+The remaining arguments, `x4`, `cookie`, `handle` and `flags` are unused
+in this implementation.
+
+### PMF code structure
+
+1.  `pmf_main.c` consists of core functions that implement service registration,
+    initialization, storing, dumping and retrieving timestamps.
+
+2.  `pmf_smc.c` contains the SMC handling for registered PMF services.
+
+3.  `pmf.h` contains the public interface to Performance Measurement Framework.
+
+4.  `pmf_asm_macros.S` consists of macros to facilitate capturing timestamps in
+    assembly code.
+
+5.  `pmf_helpers.h` is an internal header used by `pmf.h`.
+
+
+14.  Code Structure
 -------------------
 
 Trusted Firmware code is logically divided between the three boot loader
@@ -1776,10 +2149,11 @@ following categories (present as directories in the source code):
     the platform.
 *   **Common code.** This is platform and architecture agnostic code.
 *   **Library code.** This code comprises of functionality commonly used by all
-    other code.
+    other code. The PSCI implementation and other EL3 runtime frameworks reside
+    as Library components.
 *   **Stage specific.** Code specific to a boot stage.
 *   **Drivers.**
-*   **Services.** EL3 runtime services, e.g. PSCI or SPD. Specific SPD services
+*   **Services.** EL3 runtime services (eg: SPD). Specific SPD services
     reside in the `services/spd` directory (e.g. `services/spd/tspd`).
 
 Each boot loader stage uses code from one or more of the above mentioned
@@ -1808,7 +2182,7 @@ FDTs provide a description of the hardware platform and are used by the Linux
 kernel at boot time. These can be found in the `fdts` directory.
 
 
-13.  References
+15.  References
 ---------------
 
 1.  Trusted Board Boot Requirements CLIENT PDD (ARM DEN 0006B-5). Available
@@ -1834,3 +2208,4 @@ _Copyright (c) 2013-2016, ARM Limited and Contributors. All rights reserved._
 [INTRG]:            ./interrupt-framework-design.md
 [CPUBM]:            ./cpu-specific-build-macros.md
 [Firmware Update]:  ./firmware-update.md
+[PSCI Lib guide]:   ./psci-lib-integration-guide.md

@@ -895,18 +895,11 @@ static int cores_pwr_domain_on(unsigned long mpidr, uint64_t entrypoint)
 	return 0;
 }
 
-static int cores_pwr_domain_off(uint32_t lvl, plat_local_state_t lvl_state)
+static int cores_pwr_domain_off(void)
 {
-
 	uint32_t cpu_id = plat_my_core_pos();
 
-	switch (lvl) {
-	case MPIDR_AFFLVL0:
-		cpus_power_domain_off(cpu_id, core_pwr_wfi);
-		break;
-	default:
-		break;
-	}
+	cpus_power_domain_off(cpu_id, core_pwr_wfi);
 
 	return 0;
 }
@@ -917,7 +910,7 @@ static int cores_pwr_domain_suspend(void)
 
 	assert(cpuson_flags[cpu_id] == 0);
 	cpuson_flags[cpu_id] = PMU_CPU_AUTO_PWRDN;
-	cpuson_entry_point[cpu_id] = (uintptr_t)psci_entrypoint;
+	cpuson_entry_point[cpu_id] = plat_get_sec_entrypoint();
 	dsb();
 
 	cpus_power_domain_off(cpu_id, core_pwr_wfi_int);
@@ -925,18 +918,11 @@ static int cores_pwr_domain_suspend(void)
 	return 0;
 }
 
-static int cores_pwr_domain_on_finish(uint32_t lvl,
-				      plat_local_state_t lvl_state)//error
+static int cores_pwr_domain_on_finish(void)
 {
 	uint32_t cpu_id = plat_my_core_pos();
 
-	switch (lvl) {
-	case MPIDR_AFFLVL0:
-		pmu_write32(CORES_PM_DISABLE, PMU_CPUAPM_CON(cpu_id));
-		break;
-	default:
-		break;
-	}
+	pmu_write32(CORES_PM_DISABLE, PMU_CPUAPM_CON(cpu_id));
 
 	return 0;
 }

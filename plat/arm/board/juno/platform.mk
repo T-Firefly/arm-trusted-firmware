@@ -37,7 +37,7 @@ JUNO_GIC_SOURCES	:=	drivers/arm/gic/common/gic_common.c	\
 JUNO_INTERCONNECT_SOURCES	:=	drivers/arm/cci/cci.c		\
 					plat/arm/common/arm_cci.c
 
-JUNO_SECURITY_SOURCES	:=	drivers/arm/tzc400/tzc400.c		\
+JUNO_SECURITY_SOURCES	:=	drivers/arm/tzc/tzc400.c		\
 				plat/arm/board/juno/juno_security.c	\
 				plat/arm/common/arm_tzc400.c
 
@@ -79,7 +79,7 @@ SKIP_A57_L1_FLUSH_PWR_DWN	:=	 1
 ENABLE_PLAT_COMPAT		:= 	0
 
 # Enable memory map related constants optimisation
-ARM_BOARD_OPTIMISE_MMAP		:=	1
+ARM_BOARD_OPTIMISE_MEM		:=	1
 
 include plat/arm/board/common/board_css.mk
 include plat/arm/common/arm_common.mk

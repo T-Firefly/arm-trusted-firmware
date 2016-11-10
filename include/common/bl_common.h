@@ -50,7 +50,11 @@
  * 'entry_point_info' structure at their correct offsets.
  ******************************************************************************/
 #define ENTRY_POINT_INFO_PC_OFFSET	0x08
+#ifdef AARCH32
+#define ENTRY_POINT_INFO_ARGS_OFFSET	0x10
+#else
 #define ENTRY_POINT_INFO_ARGS_OFFSET	0x18
+#endif
 
 /* The following are used to set/get image attributes. */
 #define PARAM_EP_SECURITY_MASK		(0x1)
@@ -89,11 +93,23 @@
 #define EP_GET_EXE(x) (x & EP_EXE_MASK)
 #define EP_SET_EXE(x, ee) ((x) = ((x) & ~EP_EXE_MASK) | (ee))
 
+#define EP_FIRST_EXE_MASK	0x10
+#define EP_FIRST_EXE		0x10
+#define EP_GET_FIRST_EXE(x) ((x) & EP_FIRST_EXE_MASK)
+#define EP_SET_FIRST_EXE(x, ee) ((x) = ((x) & ~EP_FIRST_EXE_MASK) | (ee))
+
 #define PARAM_EP		0x01
 #define PARAM_IMAGE_BINARY	0x02
 #define PARAM_BL31		0x03
+#define PARAM_BL_LOAD_INFO	0x04
+#define PARAM_BL_PARAMS		0x05
+#define PARAM_PSCI_LIB_ARGS	0x06
+
+#define IMAGE_ATTRIB_SKIP_LOADING	0x02
+#define IMAGE_ATTRIB_PLAT_SETUP		0x04
 
 #define VERSION_1	0x01
+#define VERSION_2	0x02
 
 #define INVALID_IMAGE_ID		(0xFFFFFFFF)
 
@@ -137,28 +153,36 @@
 #include <cassert.h>
 #include <stdint.h>
 #include <stddef.h>
-
-#define ARRAY_SIZE(a)	(sizeof(a) / sizeof((a)[0]))
+#include <types.h>
+#include <utils.h> /* To retain compatibility */
 
 /*
  * Declarations of linker defined symbols to help determine memory layout of
  * BL images
  */
-extern unsigned long __RO_START__;
-extern unsigned long __RO_END__;
+#if SEPARATE_CODE_AND_RODATA
+extern uintptr_t __TEXT_START__;
+extern uintptr_t __TEXT_END__;
+extern uintptr_t __RODATA_START__;
+extern uintptr_t __RODATA_END__;
+#else
+extern uintptr_t __RO_START__;
+extern uintptr_t __RO_END__;
+#endif
+
 #if IMAGE_BL2
-extern unsigned long __BL2_END__;
+extern uintptr_t __BL2_END__;
 #elif IMAGE_BL2U
-extern unsigned long __BL2U_END__;
+extern uintptr_t __BL2U_END__;
 #elif IMAGE_BL31
-extern unsigned long __BL31_END__;
+extern uintptr_t __BL31_END__;
 #elif IMAGE_BL32
-extern unsigned long __BL32_END__;
+extern uintptr_t __BL32_END__;
 #endif /* IMAGE_BLX */
 
 #if USE_COHERENT_MEM
-extern unsigned long __COHERENT_RAM_START__;
-extern unsigned long __COHERENT_RAM_END__;
+extern uintptr_t __COHERENT_RAM_START__;
+extern uintptr_t __COHERENT_RAM_END__;
 #endif
 
 
@@ -167,22 +191,31 @@ extern unsigned long __COHERENT_RAM_END__;
  * memory is available for its use and how much is already used.
  ******************************************************************************/
 typedef struct meminfo {
-	uint64_t total_base;
+	uintptr_t total_base;
 	size_t total_size;
-	uint64_t free_base;
+#if !LOAD_IMAGE_V2
+	uintptr_t free_base;
 	size_t free_size;
+#endif
 } meminfo_t;
 
 typedef struct aapcs64_params {
-	unsigned long arg0;
-	unsigned long arg1;
-	unsigned long arg2;
-	unsigned long arg3;
-	unsigned long arg4;
-	unsigned long arg5;
-	unsigned long arg6;
-	unsigned long arg7;
+	u_register_t arg0;
+	u_register_t arg1;
+	u_register_t arg2;
+	u_register_t arg3;
+	u_register_t arg4;
+	u_register_t arg5;
+	u_register_t arg6;
+	u_register_t arg7;
 } aapcs64_params_t;
+
+typedef struct aapcs32_params {
+	u_register_t arg0;
+	u_register_t arg1;
+	u_register_t arg2;
+	u_register_t arg3;
+} aapcs32_params_t;
 
 /***************************************************************************
  * This structure provides version information and the size of the
@@ -208,7 +241,11 @@ typedef struct entry_point_info {
 	param_header_t h;
 	uintptr_t pc;
 	uint32_t spsr;
+#ifdef AARCH32
+	aapcs32_params_t args;
+#else
 	aapcs64_params_t args;
+#endif
 } entry_point_info_t;
 
 /*****************************************************************************
@@ -222,6 +259,9 @@ typedef struct image_info {
 	param_header_t h;
 	uintptr_t image_base;   /* physical address of base of image */
 	uint32_t image_size;    /* bytes read from image file */
+#if LOAD_IMAGE_V2
+	uint32_t image_max_size;
+#endif
 } image_info_t;
 
 /*****************************************************************************
@@ -239,6 +279,39 @@ typedef struct image_desc {
 	image_info_t image_info;
 	entry_point_info_t ep_info;
 } image_desc_t;
+
+#if LOAD_IMAGE_V2
+/* BL image node in the BL image loading sequence */
+typedef struct bl_load_info_node {
+	unsigned int image_id;
+	image_info_t *image_info;
+	struct bl_load_info_node *next_load_info;
+} bl_load_info_node_t;
+
+/* BL image head node in the BL image loading sequence */
+typedef struct bl_load_info {
+	param_header_t h;
+	bl_load_info_node_t *head;
+} bl_load_info_t;
+
+/* BL image node in the BL image execution sequence */
+typedef struct bl_params_node {
+	unsigned int image_id;
+	image_info_t *image_info;
+	entry_point_info_t *ep_info;
+	struct bl_params_node *next_params_info;
+} bl_params_node_t;
+
+/*
+ * BL image head node in the BL image execution sequence
+ * It is also used to pass information to next BL image.
+ */
+typedef struct bl_params {
+	param_header_t h;
+	bl_params_node_t *head;
+} bl_params_t;
+
+#else /* LOAD_IMAGE_V2 */
 
 /*******************************************************************************
  * This structure represents the superset of information that can be passed to
@@ -263,6 +336,7 @@ typedef struct bl31_params {
 	image_info_t *bl33_image_info;
 } bl31_params_t;
 
+#endif /* LOAD_IMAGE_V2 */
 
 /*
  * Compile time assertions related to the 'entry_point_info' structure to
@@ -277,7 +351,7 @@ CASSERT(ENTRY_POINT_INFO_ARGS_OFFSET == \
 		__builtin_offsetof(entry_point_info_t, args), \
 		assert_BL31_args_offset_mismatch);
 
-CASSERT(sizeof(unsigned long) ==
+CASSERT(sizeof(uintptr_t) ==
 		__builtin_offsetof(entry_point_info_t, spsr) - \
 		__builtin_offsetof(entry_point_info_t, pc), \
 		assert_entrypoint_and_spsr_should_be_adjacent);
@@ -285,23 +359,33 @@ CASSERT(sizeof(unsigned long) ==
 /*******************************************************************************
  * Function & variable prototypes
  ******************************************************************************/
-unsigned long page_align(unsigned long, unsigned);
-unsigned long image_size(unsigned int image_id);
+size_t image_size(unsigned int image_id);
+
+#if LOAD_IMAGE_V2
+
+int load_image(unsigned int image_id, image_info_t *image_data);
+int load_auth_image(unsigned int image_id, image_info_t *image_data);
+
+#else
+
+uintptr_t page_align(uintptr_t, unsigned);
 int load_image(meminfo_t *mem_layout,
 	       unsigned int image_id,
 	       uintptr_t image_base,
 	       image_info_t *image_data,
 	       entry_point_info_t *entry_point_info);
 int load_auth_image(meminfo_t *mem_layout,
-		    unsigned int image_name,
+		    unsigned int image_id,
 		    uintptr_t image_base,
 		    image_info_t *image_data,
 		    entry_point_info_t *entry_point_info);
+void reserve_mem(uintptr_t *free_base, size_t *free_size,
+		uintptr_t addr, size_t size);
+
+#endif /* LOAD_IMAGE_V2 */
+
 extern const char build_message[];
 extern const char version_string[];
-
-void reserve_mem(uint64_t *free_base, size_t *free_size,
-		uint64_t addr, size_t size);
 
 void print_entry_point_info(const entry_point_info_t *ep_info);
 

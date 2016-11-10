@@ -80,19 +80,18 @@ struct arm_smccc_res {
 };
 
 /* SiP Service Calls */
-int atf_version_handler(struct arm_smccc_res *res);
 int sip_version_handler(struct arm_smccc_res *res);
-int suspend_mode_handler(uint64_t mode_id, uint64_t config1, uint64_t config2);
 int share_mem_type2page_base(share_page_type_t page_type, uint64_t *out_value);
-int share_mem_page_get_handler(uint64_t page_num, share_page_type_t page_type,
+int share_mem_page_get_handler(uint64_t page_num,
+			       share_page_type_t page_type,
 			       struct arm_smccc_res *res);
-int ddr_smc_handler(uint64_t arg0, uint64_t arg1,
-		    uint64_t id, struct arm_smccc_res *res);
-int private_plat_sip_handler(uint32_t smc_fid,
-			     uint64_t x1,
-			     uint64_t x2,
-			     uint64_t x3,
-			     uint64_t x4,
-			     void *handle,
-			     struct arm_smccc_res *res);
+
+uint64_t rockchip_plat_sip_handler(uint32_t smc_fid,
+				   uint64_t x1,
+				   uint64_t x2,
+				   uint64_t x3,
+				   uint64_t x4,
+				   void *cookie,
+				   void *handle,
+				   uint64_t flags);
 #endif

@@ -50,6 +50,9 @@ static uintptr_t rockchip_sec_entrypoint;
 
 static struct rockchip_pm_ops_cb *rockchip_ops;
 
+#pragma weak rockchip_plat_sys_pd_pwr_dn_wfi
+#pragma weak rockchip_plat_cores_pd_pwr_dn_wfi
+
 /*******************************************************************************
  * Rockchip standard platform handler called to check the validity of the power
  * state parameter.
@@ -282,14 +285,14 @@ void rockchip_pwr_domain_suspend_finish(const psci_power_state_t *target_state)
 	if (rockchip_ops->cores_pwr_dm_resume)
 		rockchip_ops->cores_pwr_dm_resume();
 	/*
-	 * Program the gic per-cpu distributor
-	 * or re-distributor interface
-	 * For sys power domain operation, resumming of the gic needs to operate in
-	 * rockchip_ops->sys_pwr_dm_resume, acording to immplementing sys power mode.
-	*/
+	 * Program the gic per-cpu distributor or re-distributor interface.
+	 * For sys power domain operation, resuming of the gic needs to operate
+	 * in rockchip_ops->sys_pwr_dm_resume, according to the sys power mode
+	 * implements.
+	 */
 	plat_rockchip_gic_cpuif_enable();
-comm_finish:
 
+comm_finish:
 	/* Perform the common cluster specific operations */
 	if (RK_CLUSTER_PWR_STATE(target_state) == PLAT_MAX_OFF_STATE) {
 		/* Enable coherency if this cluster was off */
@@ -317,6 +320,24 @@ static void __dead2 rockchip_system_poweroff(void)
 	rockchip_ops->system_off();
 }
 
+void __dead2 rockchip_plat_cores_pd_pwr_dn_wfi(void)
+{
+	psci_power_down_wfi();
+}
+
+void __dead2 rockchip_plat_sys_pd_pwr_dn_wfi(void)
+{
+	psci_power_down_wfi();
+}
+
+static void __dead2 rockchip_pd_pwr_down_wfi(const psci_power_state_t *target_state)
+{
+	if (RK_SYSTEM_PWR_STATE(target_state) == PLAT_MAX_OFF_STATE)
+		rockchip_plat_cores_pd_pwr_dn_wfi();
+	else
+		rockchip_plat_sys_pd_pwr_dn_wfi();
+}
+
 /*******************************************************************************
  * Export the platform handlers via plat_rockchip_psci_pm_ops. The rockchip
  * standard
@@ -329,6 +350,7 @@ const plat_psci_ops_t plat_rockchip_psci_pm_ops = {
 	.pwr_domain_suspend = rockchip_pwr_domain_suspend,
 	.pwr_domain_on_finish = rockchip_pwr_domain_on_finish,
 	.pwr_domain_suspend_finish = rockchip_pwr_domain_suspend_finish,
+	.pwr_domain_pwr_down_wfi = rockchip_pd_pwr_down_wfi,
 	.system_reset = rockchip_system_reset,
 	.system_off = rockchip_system_poweroff,
 	.validate_power_state = rockchip_validate_power_state,

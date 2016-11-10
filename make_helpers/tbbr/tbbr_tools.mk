@@ -30,7 +30,7 @@
 
 # This file defines the keys and certificates that must be created to establish
 # a Chain of Trust following the TBBR document. These definitions include the
-# command line options passed to the cert_create and fip_create tools.
+# command line options passed to the cert_create and fiptool commands.
 #
 # Expected environment:
 #
@@ -58,11 +58,19 @@
 TRUSTED_KEY_CERT	:=	${BUILD_PLAT}/trusted_key.crt
 FWU_CERT		:=	${BUILD_PLAT}/fwu_cert.crt
 
-# Add Trusted Key certificate to the fip_create and cert_create command line options
+# Default non-volatile counter values (overridable by the platform)
+TFW_NVCTR_VAL		?=	0
+NTFW_NVCTR_VAL		?=	0
+
+# Pass the non-volatile counters to the cert_create tool
+$(eval $(call CERT_ADD_CMD_OPT,${TFW_NVCTR_VAL},--tfw-nvctr))
+$(eval $(call CERT_ADD_CMD_OPT,${NTFW_NVCTR_VAL},--ntfw-nvctr))
+
+# Add Trusted Key certificate to the fiptool and cert_create command line options
 $(eval $(call FIP_ADD_PAYLOAD,${TRUSTED_KEY_CERT},--trusted-key-cert))
 $(eval $(call CERT_ADD_CMD_OPT,${TRUSTED_KEY_CERT},--trusted-key-cert))
 
-# Add fwu certificate to the fip_create and cert_create command line options
+# Add fwu certificate to the fiptool and cert_create command line options
 $(eval $(call FWU_FIP_ADD_PAYLOAD,${FWU_CERT},--fwu-cert))
 $(eval $(call FWU_CERT_ADD_CMD_OPT,${FWU_CERT},--fwu-cert))
 

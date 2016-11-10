@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2015, ARM Limited and Contributors. All rights reserved.
+# Copyright (c) 2015-2016, ARM Limited and Contributors. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -28,6 +28,23 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 
+# Report an error if the eval make function is not available.
+$(eval eval_available := T)
+ifneq (${eval_available},T)
+    $(error This makefile only works with a Make program that supports $$(eval))
+endif
+
+# Some utility macros for manipulating awkward (whitespace) characters.
+blank			:=
+space			:=${blank} ${blank}
+
+# A user defined function to recursively search for a filename below a directory
+#    $1 is the directory root of the recursive search (blank for current directory).
+#    $2 is the file name to search for.
+define rwildcard
+$(strip $(foreach d,$(wildcard ${1}*),$(call rwildcard,${d}/,${2}) $(filter $(subst *,%,%${2}),${d})))
+endef
+
 # This table is used in converting lower case to upper case.
 uppercase_table:=a,A b,B c,C d,D e,E f,F g,G h,H i,I j,J k,K l,L m,M n,N o,O p,P q,Q r,R s,S t,T u,U v,V w,W x,X y,Y z,Z
 
@@ -49,6 +66,13 @@ endef
 # -DFOO if $(FOO) is empty; -DFOO=$(FOO) otherwise
 define add_define
     DEFINES			+=	-D$(1)$(if $(value $(1)),=$(value $(1)),)
+endef
+
+# Convenience function for adding build definitions
+# $(eval $(call add_define_val,FOO,BAR)) will have:
+# -DFOO=BAR
+define add_define_val
+    DEFINES			+=	-D$(1)=$(2)
 endef
 
 # Convenience function for verifying option has a boolean value
@@ -88,7 +112,7 @@ define IMG_BIN
     ${BUILD_PLAT}/bl$(1).bin
 endef
 
-# FIP_ADD_PAYLOAD appends the command line arguments required by the FIP tool
+# FIP_ADD_PAYLOAD appends the command line arguments required by fiptool
 # to package a new payload. Optionally, it adds the dependency on this payload
 #   $(1) = payload filename (i.e. bl31.bin)
 #   $(2) = command line option for the specified payload (i.e. --bl31)
@@ -111,7 +135,7 @@ endef
 # using a build option. It also adds a dependency on the image file, aborting
 # the build if the file does not exist.
 #   $(1) = build option to specify the image filename (SCP_BL2, BL33, etc)
-#   $(2) = command line option for the fip_create tool (scp_bl2, bl33, etc)
+#   $(2) = command line option for fiptool (scp_bl2, bl33, etc)
 # Example:
 #   $(eval $(call FIP_ADD_IMG,BL33,--bl33))
 define FIP_ADD_IMG
@@ -123,7 +147,7 @@ check_$(1):
 	$$(if $(value $(1)),,$$(error "Platform '${PLAT}' requires $(1). Please set $(1) to point to the right file"))
 endef
 
-# FWU_FIP_ADD_PAYLOAD appends the command line arguments required by the FIP tool
+# FWU_FIP_ADD_PAYLOAD appends the command line arguments required by fiptool
 # to package a new FWU payload. Optionally, it  adds the dependency on this payload
 #   $(1) = payload filename (e.g. ns_bl2u.bin)
 #   $(2) = command line option for the specified payload (e.g. --fwu)
@@ -144,7 +168,7 @@ endef
 
 # FWU_FIP_ADD_IMG allows the platform to pack a binary image in the FWU FIP
 #   $(1) build option to specify the image filename (BL2U, NS_BL2U, etc)
-#   $(2) command line option for the fip_create tool (bl2u, ns_bl2u, etc)
+#   $(2) command line option for fiptool (bl2u, ns_bl2u, etc)
 # Example:
 #   $(eval $(call FWU_FIP_ADD_IMG,BL2U,--bl2u))
 define FWU_FIP_ADD_IMG
@@ -191,13 +215,11 @@ $(eval IMAGE := IMAGE_BL$(call uppercase,$(3)))
 
 $(OBJ): $(2)
 	@echo "  CC      $$<"
-	$$(Q)$$(CC) $$(CFLAGS) -D$(IMAGE) -c $$< -o $$@
+	$$(Q)$$(CC) $$(TF_CFLAGS) $$(CFLAGS) -D$(IMAGE) -c $$< -o $$@
 
-
-$(PREREQUISITES): $(2)
+$(PREREQUISITES): $(2) | bl$(3)_dirs
 	@echo "  DEPS    $$@"
-	@mkdir -p $(1)
-	$$(Q)$$(CC) $$(CFLAGS) -M -MT $(OBJ) -MF $$@ $$<
+	$$(Q)$$(CC) $$(TF_CFLAGS) $$(CFLAGS) -M -MT $(OBJ) -MF $$@ $$<
 
 ifdef IS_ANYTHING_TO_BUILD
 -include $(PREREQUISITES)
@@ -220,9 +242,8 @@ $(OBJ): $(2)
 	@echo "  AS      $$<"
 	$$(Q)$$(AS) $$(ASFLAGS) -D$(IMAGE) -c $$< -o $$@
 
-$(PREREQUISITES): $(2)
+$(PREREQUISITES): $(2) | bl$(3)_dirs
 	@echo "  DEPS    $$@"
-	@mkdir -p $(1)
 	$$(Q)$$(AS) $$(ASFLAGS) -M -MT $(OBJ) -MF $$@ $$<
 
 ifdef IS_ANYTHING_TO_BUILD
@@ -243,9 +264,8 @@ $(1): $(2)
 	@echo "  PP      $$<"
 	$$(Q)$$(AS) $$(ASFLAGS) -P -E -D__LINKER__ -o $$@ $$<
 
-$(PREREQUISITES): $(2)
+$(PREREQUISITES): $(2) | $(dir ${1})
 	@echo "  DEPS    $$@"
-	@mkdir -p $$(dir $$@)
 	$$(Q)$$(AS) $$(ASFLAGS) -M -MT $(1) -MF $$@ $$<
 
 ifdef IS_ANYTHING_TO_BUILD
@@ -274,14 +294,14 @@ endef
 
 # NOTE: The line continuation '\' is required in the next define otherwise we
 # end up with a line-feed characer at the end of the last c filename.
-# Also bare this issue in mind if extending the list of supported filetypes.
+# Also bear this issue in mind if extending the list of supported filetypes.
 define SOURCES_TO_OBJS
         $(notdir $(patsubst %.c,%.o,$(filter %.c,$(1)))) \
         $(notdir $(patsubst %.S,%.o,$(filter %.S,$(1))))
 endef
 
 
-# MAKE_TOOL_ARGS macro defines the command line arguments for the FIP tool for
+# MAKE_TOOL_ARGS macro defines the command line arguments for fiptool for
 # each BL image. Arguments:
 #   $(1) = BL stage (2, 30, 31, 32, 33)
 #   $(2) = Binary file
@@ -310,18 +330,36 @@ define MAKE_BL
         $(eval DUMP       := $(call IMG_DUMP,$(1)))
         $(eval BIN        := $(call IMG_BIN,$(1)))
         $(eval BL_LINKERFILE := $(BL$(call uppercase,$(1))_LINKERFILE))
+        # We use sort only to get a list of unique object directory names.
+        # ordering is not relevant but sort removes duplicates.
+        $(eval TEMP_OBJ_DIRS := $(sort $(BUILD_DIR)/ $(dir ${OBJS})))
+        # The $(dir ) function leaves a trailing / on the directory names
+        # We append a . then strip /. from each, to remove the trailing / characters
+        # This gives names suitable for use as make rule targets.
+        $(eval OBJ_DIRS   := $(subst /.,,$(addsuffix .,$(TEMP_OBJ_DIRS))))
 
-        $(eval $(call MAKE_OBJS,$(BUILD_DIR),$(SOURCES),$(1)))
-        $(eval $(call MAKE_LD,$(LINKERFILE),$(BL_LINKERFILE)))
+# Create generators for object directory structure
 
-$(BUILD_DIR):
-	$$(Q)mkdir -p "$$@"
+$(eval $(foreach objd,${OBJ_DIRS},$(call MAKE_PREREQ_DIR,${objd},)))
 
-$(ELF): $(OBJS) $(LINKERFILE)
+.PHONY : bl${1}_dirs
+
+# We use order-only prerequisites to ensure that directories are created,
+# but do not cause re-builds every time a file is written.
+bl${1}_dirs: | ${OBJ_DIRS}
+
+$(eval $(call MAKE_OBJS,$(BUILD_DIR),$(SOURCES),$(1)))
+$(eval $(call MAKE_LD,$(LINKERFILE),$(BL_LINKERFILE)))
+
+$(ELF): $(OBJS) $(LINKERFILE) | bl$(1)_dirs
 	@echo "  LD      $$@"
+ifdef MAKE_BUILD_STRINGS
+	$(call MAKE_BUILD_STRINGS, $(BUILD_DIR)/build_message.o)
+else
 	@echo 'const char build_message[] = "Built : "$(BUILD_MESSAGE_TIMESTAMP); \
 	       const char version_string[] = "${VERSION_STRING}";' | \
-		$$(CC) $$(CFLAGS) -xc - -o $(BUILD_DIR)/build_message.o
+		$$(CC) $$(TF_CFLAGS) $$(CFLAGS) -xc - -o $(BUILD_DIR)/build_message.o
+endif
 	$$(Q)$$(LD) -o $$@ $$(LDFLAGS) -Map=$(MAPFILE) --script $(LINKERFILE) \
 					$(BUILD_DIR)/build_message.o $(OBJS)
 
@@ -337,7 +375,7 @@ $(BIN): $(ELF)
 	@echo
 
 .PHONY: bl$(1)
-bl$(1): $(BUILD_DIR) $(BIN) $(DUMP)
+bl$(1): $(BIN) $(DUMP)
 
 all: bl$(1)
 

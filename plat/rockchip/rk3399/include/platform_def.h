@@ -110,8 +110,8 @@
  * Platform specific page table and MMU setup constants
  ******************************************************************************/
 #define ADDR_SPACE_SIZE		(1ull << 32)
-#define MAX_XLAT_TABLES		41
-#define MAX_MMAP_REGIONS	41
+#define MAX_XLAT_TABLES		20
+#define MAX_MMAP_REGIONS	25
 
 /*******************************************************************************
  * Declarations and constants to access the mailboxes safely. Each mailbox is
@@ -147,7 +147,5 @@
 #define PLAT_RK_CCI_BASE		CCI500_BASE
 
 #define PLAT_RK_PRIMARY_CPU		0x0
-
-#define RK_PLAT_AARCH_CFG		RK_PLAT_CFG1
 
 #endif /* __PLATFORM_DEF_H__ */

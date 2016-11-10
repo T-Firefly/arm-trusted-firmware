@@ -37,19 +37,13 @@
 #include <xlat_tables.h>
 #include <psci.h>
 
-extern uint32_t __bl31_sram_start, __bl31_sram_lma_start,
-	__bl31_sram_code_size;
-extern uint32_t __bl31_sram_data_start, __bl31_sram_data_lma_start,
-	__bl31_sram_data_size, __bl31_sram_data_end;
-
-/* Tag variables with this */
 #define __sramdata __attribute__((section(".sram.data")))
-/* Tag constants with this */
 #define __sramconst __attribute__((section(".sram.rodata")))
-/* Tag fun with this */
-#define __sramfunc __attribute__((section(".sram.text")))\
-		   __attribute__((noinline))
-#define sramlocalfunc __attribute__((section(".sram.text")))
+#define __sramfunc __attribute__((section(".sram.text")))	\
+			__attribute__((noinline))
+
+extern uint32_t __bl31_sram_text_start, __bl31_sram_text_end;
+extern uint32_t __bl31_sram_data_start, __bl31_sram_data_end;
 
 /******************************************************************************
  * For rockchip socs pm ops
@@ -69,7 +63,8 @@ struct rockchip_pm_ops_cb {
 	int (*sys_pwr_dm_suspend)(void);
 	int (*sys_pwr_dm_resume)(void);
 	void (*sys_gbl_soft_reset)(void) __dead2;
-	void (*system_off)(void)__dead2;
+	void (*system_off)(void) __dead2;
+	void (*sys_pwr_down_wfi)(const psci_power_state_t *state_info) __dead2;
 };
 
 /******************************************************************************
@@ -118,6 +113,8 @@ void plat_cci_disable(void);
 
 void plat_delay_timer_init(void);
 
+void params_early_setup(void *plat_params_from_bl2);
+
 void plat_rockchip_gic_driver_init(void);
 void plat_rockchip_gic_init(void);
 void plat_rockchip_gic_cpuif_enable(void);
@@ -135,6 +132,15 @@ uintptr_t plat_get_sec_entrypoint(void);
 
 void platform_cpu_warmboot(void);
 
+struct gpio_info *plat_get_rockchip_gpio_reset(void);
+struct gpio_info *plat_get_rockchip_gpio_poweroff(void);
+struct gpio_info *plat_get_rockchip_suspend_gpio(uint32_t *count);
+struct apio_info *plat_get_rockchip_suspend_apio(void);
+void plat_rockchip_gpio_init(void);
+
+void __dead2 rockchip_plat_cores_pd_pwr_dn_wfi(void);
+void __dead2 rockchip_plat_sys_pd_pwr_dn_wfi(void);
+
 extern const unsigned char rockchip_power_domain_tree_desc[];
 
 extern void *pmu_cpuson_entrypoint_start;
@@ -148,6 +154,7 @@ void rockchip_plat_sram_mmu_el3(void);
 void plat_rockchip_mem_prepare(void);
 
 #endif /* __ASSEMBLY__ */
+
 /******************************************************************************
  * cpu up status
  * The bits of macro value is not more than 12 bits for cmp instruction!
