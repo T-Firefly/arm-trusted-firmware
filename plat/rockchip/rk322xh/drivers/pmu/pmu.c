@@ -41,6 +41,8 @@
 #include <soc.h>
 #include <pmu_com.h>
 
+DEFINE_BAKERY_LOCK(rockchip_pd_lock);
+
 #define CPU_PD_CTR_FLG_HW 0
 
 static struct psram_data_t *psram_sleep_cfg =
@@ -287,8 +289,6 @@ void bl31_plat_runtime_setup(void)
 void plat_rockchip_pmu_init(void)
 {
 	uint32_t cpu;
-
-	return;	/* debug return */
 
 	plat_setup_rockchip_pm_ops(&pm_ops);
 
