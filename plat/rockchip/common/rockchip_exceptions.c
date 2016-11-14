@@ -43,19 +43,21 @@
 #include <runtime_svc.h>
 #include <string.h>
 #include <pmu.h>
+#include <rockchip_sip_svc.h>
 
 #define RKSIP_EL3FIQ_CFG			0x82000006
 #define RKSIP_ACCESS_CHIP_STATE64		0xc2000006
 #define RKSIP_ACCESS_CHIP_EXTRA_STATE64		0xc2000007
-#define FIQ_FLAG	(TFW_DATA_FIQ_BASE + TFW_DATA_FIQ_SIZE - 0x04)
+#define TFW_DATA_FIQ_SIZE			SIZE_K(8)
+#define FIQ_FLAG	(SHARE_MEM_BASE + TFW_DATA_FIQ_SIZE - 0x04)
 
-#define UARTDBG_CFG_INIT 0xf0
-#define UARTDBG_CFG_OSHDL_TO_OS 0xf1
-#define UARTDBG_CFG_OSHDL_CPUSW 0xf3
-#define UARTDBG_CFG_OSHDL_ENDBG 0xf4
-#define UARTDBG_CFG_OSHDL_DISDBG 0xf5
-#define UARTDBG_CFG_SET_SHARE_MEM 0xf6
-#define UARTDBG_CFG_PRINT_PORT	0xf7
+#define UARTDBG_CFG_INIT		0xf0
+#define UARTDBG_CFG_OSHDL_TO_OS		0xf1
+#define UARTDBG_CFG_OSHDL_CPUSW		0xf3
+#define UARTDBG_CFG_OSHDL_ENDBG		0xf4
+#define UARTDBG_CFG_OSHDL_DISDBG	0xf5
+#define UARTDBG_CFG_SET_SHARE_MEM	0xf6
+#define UARTDBG_CFG_PRINT_PORT		0xf7
 
 #define enable_irq()			write_daifclr(DAIF_IRQ_BIT)
 #define enable_fiq()			write_daifclr(DAIF_FIQ_BIT)
@@ -73,22 +75,9 @@
 #define GIC_RET_ERRORID		-2
 #define GIC_RET_UARTDBG		-10
 
-#define ID_UART0	0x00
-#define ID_UART1	0x01
-#define ID_UART2	0x02
-#define ID_UART3	0x03
-#define ID_UART4	0x04
-
-#define UART0_IRQ_ID	131
-#define UART1_IRQ_ID	130
-#define UART2_IRQ_ID	132
-#define UART3_IRQ_ID	133
-#define UART4_IRQ_ID	134
-
 #define MPDIR_CRT(cluster, cpu) \
 	((cluster) << MPIDR_AFF1_SHIFT | (cpu) << MPIDR_AFF0_SHIFT)
 
-#define TFW_DATA_FIQ_CXT_BASE (TFW_DATA_FIQ_BASE)
 #define TFW_DATA_FIQ_CXT_SIZE (sizeof(cpu_context_t))
 
 static uint32_t *fiq_flag = (uint32_t *)FIQ_FLAG;
@@ -106,10 +95,10 @@ struct uartdbg_el1_st_t {
 	uint32_t el3_daif;
 	uint32_t spsr_el3;
 	/*
-	  * linux os may modify sp_el1,so we need to resume it.
-	  * if we use cm_el1_sysregs_context_save() to save sysreg,
-	  * sp_el1 is not need to saving
-	  */
+	 * linux os may modify sp_el1,so we need to resume it.
+	 * if we use cm_el1_sysregs_context_save() to save sysreg,
+	 * sp_el1 is not need to saving
+	 */
 	uint64_t sp_el1;
 	void *tf_ctx;
 	char *fiq_dbg_ctx;
@@ -119,30 +108,6 @@ static struct uartdbg_el1_st_t uartdbg_el_data;
 static struct uartdbg_uart_info_t uartdbg_uart_info;
 static uint8_t boot_cpu_msk;
 static cpu_context_t rk_sec_context[PLATFORM_CORE_COUNT];
-
-uint64_t get_fiq_id(uint64_t uart_id)
-{
-	switch (uart_id) {
-	case ID_UART0:
-		return UART0_IRQ_ID;
-
-	case ID_UART1:
-		return UART1_IRQ_ID;
-
-	case ID_UART2:
-		return UART2_IRQ_ID;
-
-	case ID_UART3:
-		return UART3_IRQ_ID;
-
-	case ID_UART4:
-		return UART4_IRQ_ID;
-
-	default:
-		ERROR("The uart id is error\n");
-		return 0;
-	}
-}
 
 static uint64_t gic_handle_irq(uint32_t id,
 			       uint32_t flags,
@@ -162,8 +127,7 @@ static void uartdbg_irq_stat_store(uint32_t irqstat)
 
 static uint32_t uartdbg_set_print_port(uint32_t port, uint32_t baudrate)
 {
-	uartdbg_uart_info.irq_id = get_fiq_id(port);
-	return 0;
+	return SIP_RET_NOT_SUPPORTED;
 }
 
 uint32_t get_uart_irq_id(void)
@@ -183,14 +147,14 @@ void fiq_enable_flag(uint32_t cpu_id)
 {
 	*fiq_flag = 0x0;
 }
+
 static uint64_t gic_handle_except(uint32_t id,
 				  uint32_t flags,
 				  void *handle,
 				  void *cookie)
 {
-	uint32_t irqstat, irqnr, i = 0;
+	uint32_t irqstat, irqnr;
 	uint64_t ret;
-	uint32_t sctlr_el1_save;
 	uint32_t cpu_id = plat_my_core_pos();
 
 	/*
@@ -200,11 +164,9 @@ static uint64_t gic_handle_except(uint32_t id,
 	do {
 		irqstat = plat_ic_acknowledge_interrupt();
 		irqnr = irqstat & GICC_IAR_INT_ID_MASK;
-		i++;
 
-		sctlr_el1_save = read_sctlr_el1();
-
-		if ((sctlr_el1_save & 0x01) != 0x01) {
+		/* MMU not enable(the time that cpu boots up in EL1), skip */
+		if ((read_sctlr_el1() & SCTLR_M_BIT) != SCTLR_M_BIT) {
 			plat_ic_end_of_interrupt(irqnr);
 
 			cpu_id = plat_my_core_pos();
@@ -216,8 +178,7 @@ static uint64_t gic_handle_except(uint32_t id,
 		}
 
 		if (irqnr > 15 && irqnr < 1021) {
-			ret  = gic_handle_irq(irqnr, flags, handle, cookie);
-
+			ret = gic_handle_irq(irqnr, flags, handle, cookie);
 			if (ret == GIC_RET_UARTDBG) {
 				uartdbg_irq_stat_store(irqstat);
 				return 0;
@@ -226,11 +187,7 @@ static uint64_t gic_handle_except(uint32_t id,
 			plat_ic_end_of_interrupt(irqnr);
 			continue;
 		}
-		if (irqnr < 16) {
-			plat_ic_end_of_interrupt(irqstat);
-			continue;
-		}
-		if (irqnr > 1020) {
+		if ((irqnr < 16) || (irqnr > 1020)) {
 			plat_ic_end_of_interrupt(irqstat);
 			continue;
 		}
@@ -249,9 +206,9 @@ static unsigned int gic_get_cpuif_id(void)
 }
 
 /*
-  * cpu_context[] nosecure init is runtime_svc_init()
-  * so rk_register_handler call following runtime_svc_init()
-  */
+ * cpu_context[] nosecure init is runtime_svc_init()
+ * so rk_register_handler call following runtime_svc_init()
+ */
 void rk_register_handler(void)
 {
 	uint64_t flags, rc, mpidr;
@@ -259,29 +216,23 @@ void rk_register_handler(void)
 
 	for (cluster = 0; cluster < PLATFORM_CLUSTER_COUNT; cluster++) {
 		if (cluster == 0) {
-			for (cpu = 0;
-			     cpu < PLATFORM_CLUSTER0_CORE_COUNT;
-			     cpu++) {
+			for (cpu = 0; cpu < PLATFORM_CLUSTER0_CORE_COUNT; cpu++) {
 				mpidr = MPDIR_CRT(cluster, cpu);
 				linear_id = plat_core_pos_by_mpidr(mpidr);
 
 				set_cpu_data_by_index(mpidr,
 						      cpu_context[SECURE],
-						      (void *)&rk_sec_context[linear_id]
-						     );
+						      (void *)&rk_sec_context[linear_id]);
 			}
 		}
 
 		if (cluster == 1) {
-			for (cpu = 0;
-			     cpu < PLATFORM_CLUSTER1_CORE_COUNT;
-			     cpu++) {
+			for (cpu = 0; cpu < PLATFORM_CLUSTER1_CORE_COUNT; cpu++) {
 				mpidr = MPDIR_CRT(cluster, cpu);
 				linear_id = plat_core_pos_by_mpidr(mpidr);
 				set_cpu_data_by_index(mpidr,
 						      cpu_context[SECURE],
-						      (void *)&rk_sec_context[linear_id]
-						      );
+						      (void *)&rk_sec_context[linear_id]);
 			}
 		}
 	}
@@ -300,11 +251,12 @@ void rk_register_handler(void)
 	 * INTR_SEL1_VALID_RM1
 	 */
 
-	rc = register_interrupt_type_handler(INTR_TYPE_EL3,
+	rc = register_interrupt_type_handler(INTR_TYPE_S_EL1,
 					     gic_handle_except,
 					     flags);
 	if (rc)
 		panic();
+
 	boot_cpu_msk = gic_get_cpuif_id();
 	INFO("boot cpu mask: %d\n", boot_cpu_msk);
 }
@@ -312,11 +264,11 @@ void rk_register_handler(void)
 int32_t register_secfiq_handler(uint32_t id, interrupt_type_handler_t handler)
 {
 	if (id >= IRQ_NUM_MAX)
-		return -1;
+		return SIP_RET_INVALID_PARAMS;
 
 	rockchip_secfiq_handler[id] = handler;
 
-	return 0;
+	return SIP_RET_SUCCESS;
 }
 
 /***************************uart_dbg****************************/
@@ -347,9 +299,9 @@ static void uartdbg_to_oshdl_handler(uint64_t handler, void *handle_ctx)
 		fiq_dbg_ctx = uartdbg_el_data.fiq_dbg_ctx +
 			      line_id * cpudata_size;
 		if (!uartdbg_el_data.tf_ctx)
-			INFO("uartdbg_el_data.tf_ctx err\n");
+			ERROR("uartdbg_el_data.tf_ctx err\n");
 		if (!fiq_dbg_ctx)
-			INFO("fiq_dbg_ctx error\n");
+			ERROR("fiq_dbg_ctx error\n");
 		memcpy(fiq_dbg_ctx, uartdbg_el_data.tf_ctx, cpudata_size);
 	}
 
@@ -389,7 +341,8 @@ static void uartdbg_to_oshdl_handler(uint64_t handler, void *handle_ctx)
 	  * but fiq debug need the sp_el1 for kernel info
 	  */
 	write_ctx_reg(gp_state, CTX_GPREG_X0, uartdbg_el_data.sp_el1);
-	write_ctx_reg(gp_state, CTX_GPREG_X1, line_id * cpudata_size);
+	write_ctx_reg(gp_state, CTX_GPREG_X1,
+		      line_id * cpudata_size + sizeof(struct share_mem_manage));
 }
 
 static uint64_t uartdbg_oshdl_to_os_smc_handler(void *handle)
@@ -404,11 +357,12 @@ static uint64_t uartdbg_oshdl_to_os_smc_handler(void *handle)
 
 	write_daif(uartdbg_el_data.el3_daif);
 	/*
-	  * cm_el1_sysregs_context_restore() will reset sp_el1
-	*/
+	 * cm_el1_sysregs_context_restore() will reset sp_el1
+	 */
 	isb();
 	dsb();
-	return 0;
+
+	return SIP_RET_SUCCESS;
 }
 
 static uint64_t uartdbg_sw_cpu_smc_handler(void *handle, uint64_t mpidr)
@@ -417,17 +371,18 @@ static uint64_t uartdbg_sw_cpu_smc_handler(void *handle, uint64_t mpidr)
 	uint8_t irq_msk = 0x1 << line_id;
 
 	if (line_id >= PLATFORM_CORE_COUNT)
-		return -1;
+		return SIP_RET_INVALID_PARAMS;
+
 	if (irq_msk & mmio_read_32(PMU_BASE + PMU_PWRDN_ST)) {
 		INFO("CPU%d power down, PMU_PWRDN_ST: 0x%x\n", line_id,
 		     mmio_read_32(PMU_BASE + PMU_PWRDN_ST));
-		return 0;
+		return SIP_RET_SUCCESS;
 	}
 
 	plat_rockchip_gic_set_itargetsr(uartdbg_uart_info.irq_id, 0);
 	plat_rockchip_gic_set_itargetsr(uartdbg_uart_info.irq_id, irq_msk);
 
-	return 0;
+	return SIP_RET_SUCCESS;
 }
 
 static uint64_t uartdbg_irq_handler(uint32_t id,
@@ -447,30 +402,51 @@ static uint64_t uartdbg_irq_handler(uint32_t id,
 	return GIC_RET_UARTDBG;
 }
 
-static uint64_t uartdbg_init_smc_handler(uint64_t uart_id, uint64_t os_handler)
+static uint64_t uartdbg_init_smc_handler(uint64_t uart_irq_id,
+					 uint64_t os_handler,
+					 struct arm_smccc_res *res)
 {
-	register_secfiq_handler(uartdbg_uart_info.irq_id, uartdbg_irq_handler);
-	plat_rockchip_gic_fiq_enable(uartdbg_uart_info.irq_id, boot_cpu_msk);
+	int ret;
+	uint64_t page_base;
 
+	ret = register_secfiq_handler(uart_irq_id, uartdbg_irq_handler);
+	if (ret) {
+		ERROR("register secure fiq handler fail: %d\n", ret);
+		return ret;
+	}
+	plat_rockchip_gic_fiq_enable(uart_irq_id, boot_cpu_msk);
+
+	uartdbg_uart_info.irq_id = uart_irq_id;
 	uartdbg_uart_info.os_handler = os_handler;
 	uartdbg_uart_info.dbg_en = 0;
-
 	uartdbg_el_data.spsr_el3 = read_spsr_el3();
-	uartdbg_el_data.fiq_dbg_ctx = (void *)TFW_DATA_FIQ_CXT_BASE;
 
+	ret = share_mem_type2page_base(SHARE_PAGE_TYPE_UARTDBG, &page_base);
+	if (ret) {
+		ERROR("get uartdbg share memory fail: %d\n", ret);
+		return ret;
+	}
+
+	uartdbg_el_data.fiq_dbg_ctx = (void *)page_base;
 	*fiq_flag = 0;
 
-	assert(TFW_DATA_FIQ_SIZE >= (8 * (sizeof(cpu_context_t))));
+	assert(share_mem_type2page_size(SHARE_PAGE_TYPE_UARTDBG) >=
+	       (PLATFORM_CORE_COUNT * (sizeof(cpu_context_t))));
 
-	return (uint64_t)uartdbg_el_data.fiq_dbg_ctx;
+	res->a1 = (uint64_t)uartdbg_el_data.fiq_dbg_ctx;
+
+	return SIP_RET_SUCCESS;
 }
 
-uint64_t fiq_debugger_smc_handler(uint64_t fun_id, void *handle,
-				  uint64_t x1, uint64_t x2)
+uint64_t fiq_debugger_smc_handler(uint64_t fun_id,
+				  void *handle,
+				  uint64_t x1,
+				  uint64_t x2,
+				  struct arm_smccc_res *res)
 {
 	switch (fun_id) {
 	case UARTDBG_CFG_INIT:
-		return uartdbg_init_smc_handler(x1, x2);
+		return uartdbg_init_smc_handler(x1, x2, res);
 
 	case UARTDBG_CFG_OSHDL_TO_OS:
 		return uartdbg_oshdl_to_os_smc_handler(handle);
@@ -480,13 +456,15 @@ uint64_t fiq_debugger_smc_handler(uint64_t fun_id, void *handle,
 
 	case UARTDBG_CFG_OSHDL_ENDBG:
 		uartdbg_uart_info.dbg_en = 1;
-		return 0;
+		return SIP_RET_SUCCESS;
 
 	case UARTDBG_CFG_OSHDL_DISDBG:
 		uartdbg_uart_info.dbg_en = 0;
-		return 0;
+		return SIP_RET_SUCCESS;
+
 	case UARTDBG_CFG_PRINT_PORT:
 		 return uartdbg_set_print_port(x1, x2);
+
 	default:
 		return SMC_UNK;
 	}

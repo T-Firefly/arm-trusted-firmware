@@ -28,5 +28,7 @@
 #define __PLAT_SIP_CALLS_H__
 
 #define RK_PLAT_SIP_NUM_CALLS	0
+#define RK_SIP_UARTDBG_CFG64	0xc2000005
+#define RK_SIP_ENABLE_FIQ	0xc2000007
 
 #endif /* __PLAT_SIP_CALLS_H__ */

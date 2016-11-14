@@ -62,7 +62,6 @@ static int ddr_smc_handler(uint64_t arg0, uint64_t arg1,
 	return SIP_RET_SUCCESS;
 }
 
-#pragma weak fiq_debugger_smc_handler
 #pragma weak fiq_disable_flag
 #pragma weak fiq_enable_flag
 #pragma weak get_uart_irq_id
@@ -78,12 +77,6 @@ void fiq_enable_flag(uint32_t cpu_id)
 uint32_t get_uart_irq_id(void)
 {
 	return 0;
-}
-uint64_t fiq_debugger_smc_handler(uint64_t fun_id, void *handle,
-				  uint64_t arg0, uint64_t arg1)
-{
-	ERROR("%s: unhandled SMC (0x%lx)\n", __func__, fun_id);
-	SMC_RET1(handle, SMC_UNK);
 }
 
 static int fiq_dbg_enable(void)
@@ -129,10 +122,6 @@ uint64_t rockchip_plat_sip_handler(uint32_t smc_fid,
 
 	case RK_SIP_ENABLE_FIQ:
 		SMC_RET1(handle, fiq_dbg_enable());
-
-	case RK_SIP_UARTDBG_CFG64:
-		ret = fiq_debugger_smc_handler(x3, handle, x1, x2);
-		SMC_RET1(handle, ret);
 
 	default:
 		ERROR("%s: unhandled SMC (0x%x)\n", __func__, smc_fid);

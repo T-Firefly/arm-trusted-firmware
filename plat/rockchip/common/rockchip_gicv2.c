@@ -33,6 +33,7 @@
 #include <gicv2.h>
 #include <platform_def.h>
 #include <utils.h>
+#include <gic_common_private.h>
 
 /******************************************************************************
  * The following functions are defined as weak to allow a platform to override
@@ -43,6 +44,9 @@
 #pragma weak plat_rockchip_gic_cpuif_enable
 #pragma weak plat_rockchip_gic_cpuif_disable
 #pragma weak plat_rockchip_gic_pcpu_init
+#pragma weak plat_rockchip_gic_fiq_enable
+#pragma weak plat_rockchip_gic_fiq_disable
+#pragma weak plat_rockchip_gic_set_itargetsr
 
 /******************************************************************************
  * On a GICv2 system, the Group 1 secure interrupts are treated as Group 0
@@ -102,4 +106,33 @@ void plat_rockchip_gic_cpuif_disable(void)
 void plat_rockchip_gic_pcpu_init(void)
 {
 	gicv2_pcpu_distif_init();
+}
+
+static void gicd_set_itargetsr(uintptr_t base,
+			       unsigned int id,
+			       unsigned int target)
+{
+	mmio_write_8(base + GICD_ITARGETSR + id, target & GIC_TARGET_CPU_MASK);
+}
+
+void plat_rockchip_gic_fiq_enable(uint32_t irq, uint8_t target_cpu)
+{
+	if (irq >= MIN_SPI_ID) {
+		/* We have an SPI */
+		gicd_clr_igroupr(PLAT_RK_GICD_BASE, irq);
+		gicd_set_ipriorityr(PLAT_RK_GICD_BASE, irq,
+				    GIC_HIGHEST_SEC_PRIORITY);
+		gicd_set_itargetsr(PLAT_RK_GICD_BASE, irq, target_cpu);
+		gicd_set_isenabler(PLAT_RK_GICD_BASE, irq);
+	}
+}
+
+void plat_rockchip_gic_fiq_disable(uint32_t irq)
+{
+	gicd_set_icenabler(PLAT_RK_GICD_BASE, irq);
+}
+
+void plat_rockchip_gic_set_itargetsr(uint8_t irq, uint8_t target_cpu)
+{
+	gicd_set_itargetsr(PLAT_RK_GICD_BASE, irq, target_cpu);
 }

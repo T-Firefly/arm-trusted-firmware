@@ -56,10 +56,11 @@
 
 /* SiP Service Calls Error return code */
 #define SIP_RET_SUCCESS			0
-#define SIP_RET_NOT_SUPPORTED		-1
-#define SIP_RET_INVALID_PARAMS		-2
-#define SIP_RET_INVALID_ADDRESS		-3
-#define SIP_RET_DENIED			-4
+/* -1 occupied by SMC_UNK */
+#define SIP_RET_NOT_SUPPORTED		-2
+#define SIP_RET_INVALID_PARAMS		-3
+#define SIP_RET_INVALID_ADDRESS		-4
+#define SIP_RET_DENIED			-5
 
 /* Sip version */
 #define SIP_IMPLEMENT_V1		(1)
@@ -79,9 +80,16 @@ struct arm_smccc_res {
 	unsigned long a3;
 };
 
+struct share_mem_manage {
+	uint64_t page_base;
+	uint64_t page_num;
+	share_page_type_t page_type;
+};
+
 /* SiP Service Calls */
 int sip_version_handler(struct arm_smccc_res *res);
 int share_mem_type2page_base(share_page_type_t page_type, uint64_t *out_value);
+uint64_t share_mem_type2page_size(share_page_type_t page_type);
 int share_mem_page_get_handler(uint64_t page_num,
 			       share_page_type_t page_type,
 			       struct arm_smccc_res *res);

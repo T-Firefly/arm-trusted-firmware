@@ -34,6 +34,11 @@
 #include <rockchip_sip_svc.h>
 #include <soc.h>
 
+#include <plat_private.h>
+#include <plat_sip_calls.h>
+#include <arch_helpers.h>
+#include <platform.h>
+
 int atf_version_handler(struct arm_smccc_res *res)
 {
 	res->a1 = ((MAJOR_VERSION << 16) | MINOR_VERSION);

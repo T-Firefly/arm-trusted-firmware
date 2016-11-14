@@ -31,6 +31,7 @@
 #include <rockchip_sip_svc.h>
 #include <runtime_svc.h>
 #include <uuid.h>
+#include <xlat_tables.h>
 
 /* Rockchip SiP Service UUID */
 DEFINE_SVC_UUID(rk_sip_svc_uid,
@@ -48,14 +49,18 @@ int sip_version_handler(struct arm_smccc_res *res)
 }
 
 /****************************** share mem smc *********************************/
+#pragma weak fiq_debugger_smc_handler
+uint64_t fiq_debugger_smc_handler(uint64_t fun_id, void *handle,
+                                 uint64_t arg0, uint64_t arg1,
+                                 struct arm_smccc_res *res)
+{
+	ERROR("%s: unhandled SMC (0x%lx)\n", __func__, fun_id);
+	return 0;
+}
+
 #ifdef SHARE_MEM_BASE
 
 #define SIZE_PAGE(n)	((n) << 12)
-
-struct share_mem_manage {
-	uint64_t page_base;
-	share_page_type_t page_type;
-};
 
 static struct share_mem_manage share_mm[SHARE_MEM_PAGE_NUM];
 
@@ -114,10 +119,24 @@ int share_mem_page_get_handler(uint64_t page_num, share_page_type_t page_type,
 	/* record memory page info */
 	share_mm[mm_index].page_base = page_base;
 	share_mm[mm_index].page_type = page_type;
+	share_mm[mm_index].page_num = page_num;
 	mm_index++;
 
 	return SIP_RET_SUCCESS;
 }
+
+uint64_t share_mem_type2page_size(share_page_type_t page_type)
+{
+	uint32_t i;
+
+	for (i = 0; i < ARRAY_SIZE(share_mm); i++) {
+		if (share_mm[i].page_type == page_type)
+			return SIZE_PAGE(share_mm[i].page_num);
+	}
+
+	return SIP_RET_INVALID_PARAMS;
+}
+
 #else
 int share_mem_page_get_handler(uint64_t page_num, share_page_type_t page_type,
 			       struct arm_smccc_res *res)
@@ -126,6 +145,11 @@ int share_mem_page_get_handler(uint64_t page_num, share_page_type_t page_type,
 }
 
 int share_mem_type2page_base(share_page_type_t page_type, uint64_t *out_value)
+{
+	return SIP_RET_NOT_SUPPORTED;
+}
+
+uint64_t share_mem_type2page_size(share_page_type_t page_type)
 {
 	return SIP_RET_NOT_SUPPORTED;
 }
@@ -183,6 +207,14 @@ uint64_t sip_smc_handler(uint32_t smc_fid,
 	case RK_SIP_SIP_VERSION32:
 		ret = sip_version_handler(&res);
 		SMC_RET2(handle, ret, res.a1);
+
+	case RK_SIP_UARTDBG_CFG64:
+		ret = fiq_debugger_smc_handler(x3, handle, x1, x2, &res);
+		SMC_RET2(handle, ret, res.a1);
+
+	case RK_SIP_SHARE_MEM32:
+		ret = share_mem_page_get_handler(x1, x2, &res);
+		SMC_RET4(handle, ret, res.a1, res.a2, res.a3);
 
 	default:
 		return rockchip_plat_sip_handler(smc_fid, x1, x2, x3, x4,

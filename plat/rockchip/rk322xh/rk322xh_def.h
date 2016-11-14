@@ -131,4 +131,8 @@
  */
 #define RK_G1S_IRQS		(RK_IRQ_SEC_PHY_TIMER)
 
+#define SHARE_MEM_BASE          0x100000/* [1MB, 1MB+60K]*/
+#define SHARE_MEM_PAGE_NUM      15
+#define SHARE_MEM_SIZE          SIZE_K(SHARE_MEM_PAGE_NUM * 4)
+
 #endif /* __PLAT_DEF_H__ */

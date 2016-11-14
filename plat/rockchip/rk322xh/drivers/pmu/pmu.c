@@ -59,6 +59,12 @@ __attribute__ ((section("tzfw_coherent_mem")))
 int skip_suspend = 0;
 static uint32_t cpu_warm_boot_addr;
 
+#pragma weak rk_register_handler
+
+void rk_register_handler(void)
+{
+}
+
 void plat_rockchip_pmusram_prepare(void)
 {
 	uint32_t *sram_dst, *sram_src;
@@ -307,6 +313,8 @@ void plat_rockchip_pmu_init(void)
 		     SGRF_SOC_CON(1));
 
 	nonboot_cpus_off();
+
+	rk_register_handler();
 
 	INFO("%s: pd status 0x%x\n", __func__, pmu_read32(PMU_PWRDN_ST));
 }

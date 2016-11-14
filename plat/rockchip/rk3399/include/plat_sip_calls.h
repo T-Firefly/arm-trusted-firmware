@@ -40,8 +40,6 @@ int suspend_mode_handler(uint64_t mode_id, uint64_t config1, uint64_t config2);
 void fiq_disable_flag(uint32_t cpu_id);
 void fiq_enable_flag(uint32_t cpu_id);
 uint32_t get_uart_irq_id(void);
-uint64_t fiq_debugger_smc_handler(uint64_t fun_id, void *handle,
-				  uint64_t arg0, uint64_t arg1);
 
 #define RK_PLAT_SIP_NUM_CALLS	4
 
