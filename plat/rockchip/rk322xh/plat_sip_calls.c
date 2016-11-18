@@ -25,23 +25,40 @@
  */
 #include <console.h>
 #include <debug.h>
-#include <mmio.h>
-#include <platform_def.h>
 #include <plat_sip_calls.h>
-#include <rockchip_sip_svc.h>
-#include <runtime_svc.h>
 #include <rk322xh_def.h>
 #include <rockchip_sip_svc.h>
+#include <rockchip_sip_svc.h>
+#include <runtime_svc.h>
 #include <soc.h>
 
-#include <plat_private.h>
-#include <plat_sip_calls.h>
-#include <arch_helpers.h>
-#include <platform.h>
-
-int atf_version_handler(struct arm_smccc_res *res)
+static int atf_version_handler(struct arm_smccc_res *res)
 {
 	res->a1 = ((MAJOR_VERSION << 16) | MINOR_VERSION);
 
 	return SIP_RET_SUCCESS;
 }
+
+uint64_t rockchip_plat_sip_handler(uint32_t smc_fid,
+				   uint64_t x1,
+				   uint64_t x2,
+				   uint64_t x3,
+				   uint64_t x4,
+				   void *cookie,
+				   void *handle,
+				   uint64_t flags)
+{
+	int ret = SIP_RET_DENIED;
+	struct arm_smccc_res res;
+
+	switch (smc_fid) {
+	case RK_SIP_ATF_VERSION32:
+		ret = atf_version_handler(&res);
+		SMC_RET2(handle, ret, res.a1);
+
+	default:
+		ERROR("%s: unhandled SMC (0x%x)\n", __func__, smc_fid);
+		SMC_RET1(handle, SMC_UNK);
+	}
+}
+
