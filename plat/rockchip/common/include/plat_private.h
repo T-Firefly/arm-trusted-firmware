@@ -138,7 +138,8 @@ struct gpio_info *plat_get_rockchip_suspend_gpio(uint32_t *count);
 struct apio_info *plat_get_rockchip_suspend_apio(void);
 void plat_rockchip_gpio_init(void);
 
-void __dead2 rockchip_plat_cores_pd_pwr_dn_wfi(void);
+void __dead2 rockchip_plat_cores_pd_pwr_dn_wfi(
+				const psci_power_state_t *target_state);
 void __dead2 rockchip_plat_sys_pd_pwr_dn_wfi(void);
 
 extern const unsigned char rockchip_power_domain_tree_desc[];

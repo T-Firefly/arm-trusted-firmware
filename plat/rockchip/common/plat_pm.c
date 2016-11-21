@@ -320,7 +320,8 @@ static void __dead2 rockchip_system_poweroff(void)
 	rockchip_ops->system_off();
 }
 
-void __dead2 rockchip_plat_cores_pd_pwr_dn_wfi(void)
+void __dead2 rockchip_plat_cores_pd_pwr_dn_wfi(
+				const psci_power_state_t *target_state)
 {
 	psci_power_down_wfi();
 }
@@ -330,12 +331,13 @@ void __dead2 rockchip_plat_sys_pd_pwr_dn_wfi(void)
 	psci_power_down_wfi();
 }
 
-static void __dead2 rockchip_pd_pwr_down_wfi(const psci_power_state_t *target_state)
+static void __dead2 rockchip_pd_pwr_down_wfi(
+		const psci_power_state_t *target_state)
 {
 	if (RK_SYSTEM_PWR_STATE(target_state) == PLAT_MAX_OFF_STATE)
-		rockchip_plat_cores_pd_pwr_dn_wfi();
-	else
 		rockchip_plat_sys_pd_pwr_dn_wfi();
+	else
+		rockchip_plat_cores_pd_pwr_dn_wfi(target_state);
 }
 
 /*******************************************************************************
