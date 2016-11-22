@@ -110,4 +110,23 @@ enum pmu_sft_con {
 #define CHK_CPU_LOOP		500
 #define MAX_WAIT_CONUT		1000
 
+#define WAKEUP_INT_CLUSTER_EN	0x1
+#define PMIC_SLEEP_REG		0x34
+#define GRF_GPIO2A_IOMUX	0x20
+
+#define IS_PLL_LOKED(pll_id)	\
+		!!(cru_read32(PLL_CONS(pll_id, 1)) & PLL_IS_LOCKED)
+#define PLL_IS_NORM_MODE(mode, pll_id)	\
+		((mode & (PLL_NORM_MODE(pll_id)) & 0xffff) != 0)
+
+#define CTLR_ENABLE_G1_BIT	BIT(1)
+#define UART_FIFO_EMPTY		BIT(6)
+
+#define UART_IER		0x04
+#define UART_FCR		0x08
+#define UART_LSR		0x14
+
+#define UART_INT_DISABLE	0x00
+#define UART_FIFO_RESET		0x07
+
 #endif /* __PMU_H__ */

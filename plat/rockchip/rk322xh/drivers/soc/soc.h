@@ -100,6 +100,7 @@ enum plls_id {
 #define CRU_CLKGATE_NUMS	29
 #define CRU_SOFTRSTS_CON(n)	(0x300 + ((n) * 4))
 #define CRU_SOFTRSTS_NUMS	12
+#define CRU_PLL_CON_NUMS	5
 
 /* PLLn_CON1 */
 #define PLL_IS_LOCKED		BIT(10)
@@ -138,6 +139,7 @@ enum plls_id {
 #define SGRF_DMAC_CON(n)		(0x100 + (n) * 4)
 #define SGRF_HDCP_KEY_CON(n)		(0x280 + (n) * 4)
 
+#define DDR_PCTL2_PWRCTL		0x30
 /************************** regs func *****************************************/
 #define STIMER_S			BIT(23)
 #define SGRF_SLV_S_ALL_NS		0x0
@@ -149,6 +151,7 @@ enum plls_id {
 #define DMA_SOFTRST_REQ			0x01000100
 #define DMA_SOFTRST_RLS			0x01000000
 
+#define SELFREF_EN			(1 << 0)
 /************************** cpu ***********************************************/
 #define CPU_BOOT_ADDR_WMASK		0xffff0000
 #define CPU_BOOT_ADDR_ALIGN		16

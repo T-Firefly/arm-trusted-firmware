@@ -79,6 +79,9 @@
 #define PMUSRAM_SIZE		SIZE_K(4)
 #define PMUSRAM_RSIZE		SIZE_K(4)
 
+#define DDR_UPCTL_BASE		0xff780000
+#define DDR_UPCTL_SIZE		SIZE_K(64)
+
 #define FIREWALL_DDR_BASE	0xff7c0000
 #define FIREWALL_DDR_SIZE	SIZE_K(64)
 
@@ -87,6 +90,9 @@
 
 #define GIC400_BASE		0xff810000
 #define GIC400_SIZE		SIZE_K(64)
+
+#define DDR_GRF_BASE		0xff798000
+#define DDR_GRF_SIZE		SIZE_K(16)
 
 /**************************************************************************
  * UART related constants
