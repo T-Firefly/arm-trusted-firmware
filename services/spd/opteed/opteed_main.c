@@ -316,6 +316,9 @@ uint64_t opteed_smc_handler(uint32_t smc_fid,
 			 * when generated during code executing in the
 			 * non-secure state.
 			 */
+#ifdef PLAT_SKIP_OPTEE_S_EL1_INT_REGISTER
+			goto skip;
+#endif
 			flags = 0;
 			set_interrupt_rm_flag(flags, NON_SECURE);
 			rc = register_interrupt_type_handler(INTR_TYPE_S_EL1,
@@ -324,7 +327,9 @@ uint64_t opteed_smc_handler(uint32_t smc_fid,
 			if (rc)
 				panic();
 		}
-
+#ifdef PLAT_SKIP_OPTEE_S_EL1_INT_REGISTER
+skip:
+#endif
 		/*
 		 * OPTEE reports completion. The OPTEED must have initiated
 		 * the original request through a synchronous entry into
