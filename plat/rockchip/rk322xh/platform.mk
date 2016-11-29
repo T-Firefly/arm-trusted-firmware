@@ -43,6 +43,7 @@ PLAT_INCLUDES		:=	-Idrivers/arm/gic/common/			\
 				-Idrivers/arm/gic/common/			\
 				-Iinclude/plat/common/				\
 				-I${RK_PLAT_SOC}/include/			\
+				-Iplat/mediatek/common/drivers/uart/	\
 
 RK_GIC_SOURCES	:=	drivers/arm/gic/common/gic_common.c		\
 				drivers/arm/gic/v2/gicv2_main.c			\
@@ -57,7 +58,7 @@ PLAT_BL_COMMON_SOURCES	:=	lib/aarch64/xlat_tables.c			\
 BL31_SOURCES	+=	${RK_GIC_SOURCES}				\
 				drivers/arm/cci/cci.c				\
 				drivers/console/console.S			\
-				drivers/ti/uart/16550_console.S			\
+				plat/mediatek/common/drivers/uart/8250_console.S	\
 				drivers/delay_timer/delay_timer.c		\
 				drivers/delay_timer/generic_delay_timer.c	\
 				lib/cpus/aarch64/aem_generic.S			\
