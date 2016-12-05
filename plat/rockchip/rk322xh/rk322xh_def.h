@@ -94,6 +94,9 @@
 #define DDR_GRF_BASE		0xff798000
 #define DDR_GRF_SIZE		SIZE_K(16)
 
+#define PWM_BASE		0xff1b0000
+#define PWM_SIZE		SIZE_K(64)
+
 /**************************************************************************
  * UART related constants
  **************************************************************************/

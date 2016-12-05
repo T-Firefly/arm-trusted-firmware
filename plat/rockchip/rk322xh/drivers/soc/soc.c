@@ -70,7 +70,8 @@ const mmap_region_t plat_rk_mmap[] = {
 			MT_DEVICE | MT_RW | MT_SECURE),
 	MAP_REGION_FLAT(DDR_UPCTL_BASE, DDR_UPCTL_SIZE,
 			MT_DEVICE | MT_RW | MT_SECURE),
-
+	MAP_REGION_FLAT(PWM_BASE, PWM_SIZE,
+			MT_DEVICE | MT_RW | MT_SECURE),
 	{ 0 }
 };
 

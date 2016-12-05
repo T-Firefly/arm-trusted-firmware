@@ -78,6 +78,10 @@ extern const unsigned char rockchip_power_domain_tree_desc[];
 #define stimer_write32(n, v, offset)\
 	do { mmio_write_32(STIME_BASE + 0x20 * n + offset, v); dsb();} while (0)
 
+#define pwm_read32(offset)	mmio_read_32(PWM_BASE + (offset))
+#define pwm_write32(v, offset)	\
+	do { mmio_write_32(PWM_BASE + offset, v); dsb(); } while (0)
+
 /**************************** cru *********************************************/
 enum plls_id {
 	APLL_ID = 0,

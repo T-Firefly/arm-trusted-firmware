@@ -26,6 +26,7 @@
 #include <console.h>
 #include <debug.h>
 #include <plat_sip_calls.h>
+#include <remotectl_pwm.h>
 #include <rk322xh_def.h>
 #include <rockchip_sip_svc.h>
 #include <rockchip_sip_svc.h>
@@ -55,10 +56,11 @@ uint64_t rockchip_plat_sip_handler(uint32_t smc_fid,
 	case RK_SIP_ATF_VERSION32:
 		ret = atf_version_handler(&res);
 		SMC_RET2(handle, ret, res.a1);
-
+	case RK_SIP_REMOTECTL_CFG:
+		ret = remotectl_sip_handler(x1, x2);
+		SMC_RET1(handle, ret);
 	default:
 		ERROR("%s: unhandled SMC (0x%x)\n", __func__, smc_fid);
 		SMC_RET1(handle, SMC_UNK);
 	}
 }
-

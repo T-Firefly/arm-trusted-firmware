@@ -38,6 +38,7 @@
 #include <plat_private.h>
 #include <pmu.h>
 #include <pmu_sram.h>
+#include <remotectl_pwm.h>
 #include <rk322xh_def.h>
 #include <soc.h>
 #include <pmu_com.h>
@@ -735,6 +736,7 @@ __sramfunc void sram_suspend(void)
 {
 	uint32_t cpu_id = plat_my_core_pos();
 	unsigned int scr, val;
+	int wakeup;
 
 	/* enable gicc group0, i.e. fiq */
 	plat_rockchip_gic_cpuif_enable();
@@ -765,8 +767,10 @@ __sramfunc void sram_suspend(void)
 	scr = read_scr_el3();
 	write_scr_el3(scr | SCR_IRQ_BIT);
 
+	remotectl_prepare();
 	sram_putchar('s');
 
+loop_wfi:
 	/* disable uart clk and disable interrupt */
 	sram_data.uart2_ier = mmio_read_32(UART2_BASE + UART_IER);
 	mmio_write_32(UART2_BASE + UART_IER, UART_INT_DISABLE);
@@ -782,8 +786,16 @@ __sramfunc void sram_suspend(void)
 	cru_write32(0x00040000, CRU_CLKGATE_CON(2));
 	mmio_write_32(UART2_BASE + UART_FCR, UART_FIFO_RESET);
 	mmio_write_32(UART2_BASE + UART_IER, sram_data.uart2_ier);
-
 	sram_putchar('w');
+
+	if (remotectl_is_pwm_wakeup()) {
+		sram_putchar('m');
+		wakeup = remotectl_pwm_pwrkey_wakeup();
+		if (!wakeup)
+			goto loop_wfi;
+	}
+
+	remotectl_finish();
 
 	/* restore SCR to the original value */
 	write_scr_el3(scr);
