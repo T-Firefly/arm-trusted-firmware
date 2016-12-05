@@ -36,6 +36,13 @@
 #include <platform.h>
 #include <dfs.h>
 
+#pragma weak suspend_mode_handler
+
+int suspend_mode_handler(uint64_t mode_id, uint64_t config1, uint64_t config2)
+{
+	return 0;
+}
+
 static int ddr_smc_handler(uint64_t arg0, uint64_t arg1,
 		    uint64_t id, struct arm_smccc_res *res)
 {

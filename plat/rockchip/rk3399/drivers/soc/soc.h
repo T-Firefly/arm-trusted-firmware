@@ -100,12 +100,6 @@ enum pll_work_mode {
 	DEEP_SLOW_MODE = 0x02,
 };
 
-enum glb_sft_reset {
-	PMU_RST_BY_FIRST_SFT,
-	PMU_RST_BY_SECOND_SFT = BIT(2),
-	PMU_RST_NOT_BY_SFT = BIT(3),
-};
-
 struct deepsleep_data_s {
 	uint32_t plls_con[END_PLL_ID][PLL_CON_COUNT];
 	uint32_t pmucru_clksel_con[PMUCRU_CLKSEL_CONUT];
@@ -322,27 +316,6 @@ struct deepsleep_data_s {
 #define SGRF_PMU_CON0	0x0c100
 #define SGRF_PMU_CON(n)   (SGRF_PMU_CON0 + (n) * 4)
 #define PMUCRU_SOFTRST_CON(n)   (PMUCRU_SOFTRST_CON0 + (n) * 4)
-
-/*
- * When system reset in running state, we want the cpus to be reboot
- * from maskrom (system reboot),
- * the pmusgrf reset-hold bits needs to be released.
- * When system wake up from system deep suspend, some soc will be reset
- * when waked up,
- * we want the bootcpu to be reboot from pmusram,
- * the pmusgrf reset-hold bits needs to be held.
- */
-static inline void pmu_sgrf_rst_hld_release(void)
-{
-	mmio_write_32(PMUCRU_BASE + CRU_PMU_RSTHOLD_CON(1),
-		      CRU_PMU_SGRF_RST_RLS);
-}
-
-static inline void pmu_sgrf_rst_hld(void)
-{
-	mmio_write_32(PMUCRU_BASE + CRU_PMU_RSTHOLD_CON(1),
-		      CRU_PMU_SGRF_RST_HOLD);
-}
 
 /* funciton*/
 void __dead2 soc_global_soft_reset(void);

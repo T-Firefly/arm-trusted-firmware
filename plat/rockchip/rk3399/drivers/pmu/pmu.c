@@ -1157,8 +1157,6 @@ static int sys_pwr_domain_suspend(void)
 
 	m0_clock_init();
 
-	pmu_sgrf_rst_hld();
-
 	mmio_write_32(SGRF_BASE + SGRF_SOC_CON0_1(1),
 		      (PMUSRAM_BASE >> CPU_BOOT_ADDR_ALIGN) |
 		      CPU_BOOT_ADDR_WMASK);
@@ -1261,7 +1259,6 @@ static int sys_pwr_domain_resume(void)
 		}
 	}
 
-	pmu_sgrf_rst_hld_release();
 	pmu_scu_b_pwrup();
 	pmu_power_domains_resume();
 

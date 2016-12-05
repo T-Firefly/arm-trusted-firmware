@@ -63,6 +63,8 @@ const unsigned char rockchip_power_domain_tree_desc[] = {
 
 void secure_timer_init(void)
 {
+	mmio_write_32(STIMER1_CHN_BASE(5) + TIMER_CONTROL_REG,
+		      TIMER_DIS);
 	mmio_write_32(STIMER1_CHN_BASE(5) + TIMER_END_COUNT0, 0xffffffff);
 	mmio_write_32(STIMER1_CHN_BASE(5) + TIMER_END_COUNT1, 0xffffffff);
 
@@ -100,10 +102,18 @@ void sgrf_init(void)
 		      SGRF_SLV_S_WMSK | SGRF_SLV_S_ALL_NS);
 	mmio_write_32(SGRF_BASE + SGRF_SLV_SECURE_CON0_4(4),
 		      SGRF_SLV_S_WMSK | SGRF_SLV_S_ALL_NS);
+	mmio_write_32(SGRF_BASE + SGRF_DDRRGN_CON0_16(16),
+		      SGRF_DDR_RGN_BYPS);
 
 	/* security config for ddr memery */
 	mmio_write_32(SGRF_BASE + SGRF_DDRRGN_CON0_16(16),
-		      SGRF_DDR_RGN_BYPS);
+		      0x02000000);
+	mmio_write_32(SGRF_BASE + SGRF_DDRRGN_CON0_16(0),
+		      0x0fff0000);
+	mmio_write_32(SGRF_BASE + SGRF_DDRRGN_CON0_16(8),
+		      0x0fff0000);
+	mmio_write_32(SGRF_BASE + SGRF_DDRRGN_CON0_16(16),
+		      0x00010001);
 }
 
 static void dma_secure_cfg(uint32_t secure)

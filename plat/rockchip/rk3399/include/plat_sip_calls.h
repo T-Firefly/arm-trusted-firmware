@@ -36,7 +36,6 @@
 #define CONFIG_DRAM_CLR_IRQ	0x06
 #define CONFIG_DRAM_SET_PARAM	0x07
 
-int suspend_mode_handler(uint64_t mode_id, uint64_t config1, uint64_t config2);
 void fiq_disable_flag(uint32_t cpu_id);
 void fiq_enable_flag(uint32_t cpu_id);
 uint32_t get_uart_irq_id(void);

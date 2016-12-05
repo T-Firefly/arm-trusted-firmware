@@ -33,6 +33,7 @@
 
 #include <pmu_regs.h>
 #include <soc.h>
+#include <platform_def.h>
 
 /* Allocate sp reginon in pmusram */
 #define PSRAM_SP_SIZE		0x80
