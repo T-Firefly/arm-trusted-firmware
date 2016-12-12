@@ -67,7 +67,7 @@ struct rk322xh_sleep_ddr_data {
 	uint32_t pmu_wakeup_conf0;
 	uint32_t pmu_pwrmd_com;
 	uint32_t cru_mode_save;
-	uint32_t clk_sel0, clk_sel1, clk_sel18, clk_sel20, clk_sel24;
+	uint32_t clk_sel0, clk_sel1, clk_sel18, clk_sel20, clk_sel24, clk_sel38;
 	uint32_t clk_ungt_save[CRU_CLKGATE_NUMS];
 	uint32_t cru_plls_con_save[MAX_PLL][CRU_PLL_CON_NUMS];
 };
@@ -425,11 +425,11 @@ static void sys_slp_unconfig(void)
 #endif
 
 static uint32_t clk_ungt_msk[CRU_CLKGATE_NUMS] = {
-	0x107f, 0x0000, 0x010c, 0x0000, 0x0200,
-	0x0000, 0x0000, 0x0017, 0x001f, 0x0000,
+	0x187f, 0x0000, 0x010c, 0x0000, 0x0200,
+	0x0010, 0x0000, 0x0017, 0x001f, 0x0000,
 	0x0000, 0x0000, 0x0000, 0x0003, 0x0000,
-	0xf001, 0x27c0, 0x0011, 0x03ff, 0x0000,
-	0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+	0xf001, 0x27c0, 0x0091, 0x03ff, 0x0000,
+	0x0000, 0x0000, 0x0010, 0x0000, 0x0000,
 	0x0000, 0x0000, 0x0003, 0x0008
 };
 
@@ -565,6 +565,7 @@ static void pm_plls_suspend(void)
 	ddr_data.clk_sel18 = cru_read32(CRU_CLKSEL_CON(18));
 	ddr_data.clk_sel20 = cru_read32(CRU_CLKSEL_CON(20));
 	ddr_data.clk_sel24 = cru_read32(CRU_CLKSEL_CON(24));
+	ddr_data.clk_sel38 = cru_read32(CRU_CLKSEL_CON(38));
 
 #if RK322XH_SUSPEND_DEBUG
 {
@@ -604,10 +605,22 @@ static void pm_plls_suspend(void)
 	/* uart2 from 24M */
 	cru_write32(REG_WMSK_BITS(2, 8, 0x3),
 		    CRU_CLKSEL_CON(18));
+
+	/* clk_rtc32k */
+	cru_write32(REG_WMSK_BITS(767, 0, 0x3fff) |
+		    REG_WMSK_BITS(2, 14, 0x3),
+		    CRU_CLKSEL_CON(38));
+
 }
 
 static void pm_plls_resume(void)
 {
+	/* clk_rtc32k */
+	cru_write32(ddr_data.clk_sel38 |
+		    REG_W_MSK(0, 0x3fff) |
+		    REG_W_MSK(14, 0x3),
+		    CRU_CLKSEL_CON(38));
+
 	/* uart2 */
 	cru_write32(ddr_data.clk_sel18 | REG_W_MSK(8, 0x3),
 		    CRU_CLKSEL_CON(18));
