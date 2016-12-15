@@ -80,7 +80,6 @@
 
 #define TFW_DATA_FIQ_CXT_SIZE (sizeof(cpu_context_t))
 
-static uint32_t *fiq_flag = (uint32_t *)FIQ_FLAG;
 static interrupt_type_handler_t rockchip_secfiq_handler[IRQ_NUM_MAX];
 static cpu_context_t fiq_ns_context[PLATFORM_CORE_COUNT];
 
@@ -138,16 +137,6 @@ uint32_t get_uart_irq_id(void)
 /******************************************************************
  ** linux os handler
  ******************************************************************/
-void fiq_disable_flag(uint32_t cpu_id)
-{
-	*fiq_flag = 0xAA;
-}
-
-void fiq_enable_flag(uint32_t cpu_id)
-{
-	*fiq_flag = 0x0;
-}
-
 static uint64_t gic_handle_except(uint32_t id,
 				  uint32_t flags,
 				  void *handle,
@@ -155,7 +144,6 @@ static uint64_t gic_handle_except(uint32_t id,
 {
 	uint32_t irqstat, irqnr;
 	uint64_t ret;
-	uint32_t cpu_id = plat_my_core_pos();
 
 	/*
 	 * Check that this function is called with SP_EL0 as the stack
@@ -168,12 +156,6 @@ static uint64_t gic_handle_except(uint32_t id,
 		/* MMU not enable(the time that cpu boots up in EL1), skip */
 		if ((read_sctlr_el1() & SCTLR_M_BIT) != SCTLR_M_BIT) {
 			plat_ic_end_of_interrupt(irqnr);
-
-			cpu_id = plat_my_core_pos();
-			if (cpu_id == 0) {
-				fiq_disable_flag(0);
-				plat_rockchip_gic_fiq_disable(uartdbg_uart_info.irq_id);
-			}
 			return 0;
 		}
 
@@ -428,7 +410,6 @@ static uint64_t uartdbg_init_smc_handler(uint64_t uart_irq_id,
 	}
 
 	uartdbg_el_data.fiq_dbg_ctx = (void *)page_base;
-	*fiq_flag = 0;
 
 	assert(share_mem_type2page_size(SHARE_PAGE_TYPE_UARTDBG) >=
 	       (PLATFORM_CORE_COUNT * (sizeof(cpu_context_t))));
