@@ -75,9 +75,10 @@ int share_mem_type2page_base(share_page_type_t page_type, uint64_t *out_value)
 		return SIP_RET_INVALID_PARAMS;
 
 	for (i = 0; i < ARRAY_SIZE(share_mm); i++) {
-		if (share_mm[i].page_type == page_type)
+		if (share_mm[i].page_type == page_type) {
 			*out_value = share_mm[i].page_base;
 			return SIP_RET_SUCCESS;
+		}
 	}
 
 	return SIP_RET_INVALID_PARAMS;
