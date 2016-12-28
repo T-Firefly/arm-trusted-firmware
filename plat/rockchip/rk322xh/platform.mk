@@ -37,6 +37,7 @@ PLAT_INCLUDES		:=	-Idrivers/arm/gic/common/			\
 				-I${RK_PLAT_COMMON}/include/                    \
 				-I${RK_PLAT_COMMON}/pmusram                     \
 				-I${RK_PLAT_COMMON}/drivers/pmu/                     \
+				-I${RK_PLAT_COMMON}/drivers/parameter/		\
 				-I${RK_PLAT_SOC}/				\
 				-I${RK_PLAT_SOC}/drivers/pmu/			\
 				-I${RK_PLAT_SOC}/drivers/soc/			\
@@ -66,6 +67,7 @@ BL31_SOURCES	+=	${RK_GIC_SOURCES}				\
 				lib/cpus/aarch64/cortex_a53.S			\
 				plat/common/aarch64/platform_mp_stack.S		\
 				plat/rockchip/common/rockchip_exceptions.c	\
+				${RK_PLAT_COMMON}/drivers/parameter/parameter.c	\
 				${RK_PLAT_COMMON}/aarch64/plat_helpers.S	\
 				${RK_PLAT_COMMON}/bl31_plat_setup.c		\
 				${RK_PLAT_COMMON}/pmusram/pmu_sram.c            \

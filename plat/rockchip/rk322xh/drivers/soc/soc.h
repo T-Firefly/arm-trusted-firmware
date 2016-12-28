@@ -134,6 +134,7 @@ enum plls_id {
 #define FIREWALL_CFG_FW_SYS_CON(n)	(0x000 + (n) * 4)
 #define FIREWALL_DDR_FW_DDR_RGN(n)	(0x000 + (n) * 4)
 #define FIREWALL_DDR_FW_DDR_MST(n)	(0x020 + (n) * 4)
+#define FIREWALL_DDR_FW_DDR_CON_REG	(0x040)
 #define GRF_SOC_CON(n)			(0x400 + (n) * 4)
 #define GRF_SOC_STATUS(n)		(0x480 + (n) * 4)
 #define GRF_CPU_STATUS(n)		(0x520 + (n) * 4)
@@ -159,5 +160,9 @@ enum plls_id {
 /************************** cpu ***********************************************/
 #define CPU_BOOT_ADDR_WMASK		0xffff0000
 #define CPU_BOOT_ADDR_ALIGN		16
+
+/************************** ddr secure region *********************************/
+#define PLAT_MAX_DDR_CAPACITY_MB	4096
+#define RG_MAP_SECURE(top, base)	((((top) - 1) << 16) | (base))
 
 #endif /* __SOC_H__ */

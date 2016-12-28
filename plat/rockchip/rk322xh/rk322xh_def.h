@@ -97,6 +97,9 @@
 #define PWM_BASE		0xff1b0000
 #define PWM_SIZE		SIZE_K(64)
 
+#define DDR_PARAM_BASE		0x02000000
+#define DDR_PARAM_SIZE		SIZE_K(4)
+
 /**************************************************************************
  * UART related constants
  **************************************************************************/

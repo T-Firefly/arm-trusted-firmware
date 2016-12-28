@@ -31,6 +31,7 @@
 #include <mmio.h>
 #include <platform_def.h>
 #include <plat_private.h>
+#include <parameter.h>
 #include <rk322xh_def.h>
 #include <soc.h>
 
@@ -72,6 +73,8 @@ const mmap_region_t plat_rk_mmap[] = {
 			MT_DEVICE | MT_RW | MT_SECURE),
 	MAP_REGION_FLAT(PWM_BASE, PWM_SIZE,
 			MT_DEVICE | MT_RW | MT_SECURE),
+	MAP_REGION_FLAT(DDR_PARAM_BASE, DDR_PARAM_SIZE,
+			MT_DEVICE | MT_RW | MT_SECURE),
 	{ 0 }
 };
 
@@ -96,6 +99,21 @@ void secure_timer_init(void)
 
 void sgrf_init(void)
 {
+	uint32_t i, val;
+	struct param_ddr_usage usg;
+
+	/* general secure regions */
+	usg = ddr_region_usage_parse(DDR_PARAM_BASE, PLAT_MAX_DDR_CAPACITY_MB);
+	for (i = 0; i < usg.s_nr; i++) {
+		/* enable secure */
+		val = firewall_ddr_read32(FIREWALL_DDR_FW_DDR_CON_REG);
+		val |= BIT(7 - i);
+		firewall_ddr_write32(val, FIREWALL_DDR_FW_DDR_CON_REG);
+		/* map top and base */
+		firewall_ddr_write32(RG_MAP_SECURE(usg.s_top[i], usg.s_base[i]),
+				     FIREWALL_DDR_FW_DDR_RGN(7 - i));
+	}
+
 	/* set ddr rgn0_top and rga0_top as 0 */
 	firewall_ddr_write32(0x0, FIREWALL_DDR_FW_DDR_RGN(0));
 
