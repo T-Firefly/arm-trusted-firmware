@@ -165,4 +165,11 @@ enum plls_id {
 #define PLAT_MAX_DDR_CAPACITY_MB	4096
 #define RG_MAP_SECURE(top, base)	((((top) - 1) << 16) | (base))
 
+/************************** gpio2_d2 ******************************************/
+#define SWPORTA_DR		0x00
+#define SWPORTA_DDR		0x04
+#define GPIO2_D2		BIT(26)
+#define GPIO2_D2_GPIO_MODE	0x30
+#define GRF_GPIO2D_IOMUX	0x34
+
 #endif /* __SOC_H__ */

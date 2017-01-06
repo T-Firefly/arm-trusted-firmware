@@ -371,6 +371,31 @@ static void __dead2 soc_sys_global_soft_reset(void)
 		;
 }
 
+/* rk805 pmic_sleep: gpio2_d2 */
+static void __dead2 soc_system_off(void)
+{
+	uint32_t val;
+
+	/* gpio */
+	val = grf_read32(GRF_GPIO2D_IOMUX);
+	val &= ~GPIO2_D2_GPIO_MODE;
+	grf_write32(val, GRF_GPIO2D_IOMUX);
+
+	/* output */
+	val = mmio_read_32(GPIO2_BASE + SWPORTA_DDR);
+	val |= GPIO2_D2;
+	mmio_write_32(GPIO2_BASE + SWPORTA_DDR, val);
+
+	/* high */
+	val = mmio_read_32(GPIO2_BASE);
+	val |= GPIO2_D2;
+	mmio_write_32(GPIO2_BASE, val);
+	isb();
+
+	while (1)
+		;
+}
+
 #if 0
 static void sys_slp_config(void)
 {
@@ -954,6 +979,7 @@ static struct rockchip_pm_ops_cb pm_ops = {
 	.sys_pwr_dm_suspend = sys_pwr_domain_suspend,
 	.sys_pwr_dm_resume = sys_pwr_domain_resume,
 	.sys_gbl_soft_reset = soc_sys_global_soft_reset,
+	.system_off = soc_system_off,
 };
 
 void bl31_plat_runtime_setup(void)
