@@ -46,6 +46,9 @@
 #define WKUP_SOURCE_CONFIG		0x02
 #define PWM_REGULATOR_CONFIG		0x03
 #define GPIO_POWER_CONFIG		0x04
+#define SUSPEND_DEBUG_ENABLE		0x05
+#define APIOS_SUSPEND_CONFIG		0x06
+#define VIRTUAL_POWEROFF		0x07
 
 /* Rockchip SiP Service Calls version numbers */
 #define RK_SIP_SVC_VERSION_MAJOR	0x0

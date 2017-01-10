@@ -163,6 +163,7 @@ struct deepsleep_data_s {
 #define TIMER_INTSTATUS		0x18
 #define TIMER_CONTROL_REG	0x1c
 
+#define TIMER_DIS			0x0
 #define TIMER_EN			0x1
 
 #define TIMER_FMODE		(0x0 << 1)
@@ -332,4 +333,6 @@ void clk_gate_con_save(void);
 void clk_gate_con_disable(void);
 void clk_gate_con_restore(void);
 void sgrf_init(void);
+void secure_timer_init(void);
+void secure_timer_disable(void);
 #endif /* __SOC_H__ */
