@@ -169,4 +169,6 @@
 #define GRF_GPIO4C_P		0xe068
 #define GRF_GPIO4D_P		0xe06C
 
+#define GPIO_SWPORT_DR		0x00
+#define GPIO_SWPORT_DDR		0x04
 #endif /* __PMU_REGS_H__ */

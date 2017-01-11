@@ -55,7 +55,6 @@ struct pwm_data_s {
 
 static struct pwm_data_s pwm_data;
 
-
 static uint32_t suspend_mode;
 static uint32_t wakeup_sources;
 static uint32_t pwm_regulators;
@@ -104,9 +103,6 @@ int suspend_mode_handler(uint64_t mode_id, uint64_t config1, uint64_t config2)
 		return -1;
 	}
 }
-
-#define GPIO_SWPORT_DR	0x00
-#define GPIO_SWPORT_DDR	0x04
 
 static void suspend_apios_voltage_domain(void)
 {
@@ -285,7 +281,7 @@ static void pwm_regulator_suspend(void)
 	}
 
 	val = mmio_read_32(PMUGRF_BASE + PMUGRF_GPIO1C_IOMUX);
-	if (pwm_regulators & PWM2D_REGULATOR_EN) {
+	if (pwm_regulators & PWM2_REGULATOR_EN) {
 		pwm_data.iomux_bitmask |= PWM2_IOMUX_PWM_EN;
 		val = BITS_WITH_WMASK(GRF_IOMUX_GPIO, GRF_IOMUX_2BIT_MASK,
 				    PMUGRF_GPIO1C3_IOMUX_SHIFT);
@@ -312,7 +308,6 @@ static void pwm_regulator_suspend(void)
 		mmio_write_32(PWM_BASE + PWM_CTRL(i), val & ~PWM_ENABLE);
 	}
 }
-
 
 /*
   * Enable the PWMs.
@@ -452,11 +447,16 @@ static void gpio_power_suspend(void)
 	}
 }
 
-static void read_gpio_power_info(void)
+static void get_gpio_power_info(void)
 {
 	uint32_t i = 0;
 
 	INFO("GPIO POWER INFO:\n");
+	if (gpio_contrl[0] == PM_INVALID_GPIO) {
+		INFO("\tnot config\n");
+		return;
+	}
+
 	for (i = 0; i < 10; i++) {
 		if (gpio_contrl[i] == PM_INVALID_GPIO)
 			return;
@@ -524,9 +524,9 @@ static void pmu_sleep_config(void)
 	INFO("PMU_MODE_CONG: 0x%x\n", config);
 }
 
-static void read_suspend_mode_config(void)
+static void get_suspend_mode_config(void)
 {
-	INFO("sleep mode config: %x\n", suspend_mode);
+	INFO("sleep mode config[0x%x]:\n", suspend_mode);
 	if (suspend_mode & RKPM_SLP_AP_PWROFF)
 		INFO("\tAP_PWROFF\n");
 	if (suspend_mode & RKPM_SLP_ARMPD)
@@ -541,11 +541,15 @@ static void read_suspend_mode_config(void)
 		INFO("\tOSC_DIS\n");
 }
 
-static void read_wakup_source_config(void)
+static void get_wakup_source_config(void)
 {
 	uint32_t wkup_status = wakeup_sources;
 
-	INFO("wakeup source config:\n");
+	INFO("wakeup source config[0x%x]:\n", wakeup_sources);
+	if (!wkup_status) {
+		INFO("\tnot config\n");
+		return;
+	}
 	if (wkup_status & BIT(0))
 		INFO("\tCLUSTER L interrupt can wakeup system\n");
 	if (wkup_status & BIT(1))
@@ -570,14 +574,6 @@ static void read_wakup_source_config(void)
 		INFO("\tPWM interrupt can wakeup system\n");
 	if (wkup_status & BIT(13))
 		INFO("\tpcie interrupt can wakeup system\n");
-}
-
-/*the info about the susped mode, wake up source, the gpio pin control.*/
-static void sleep_debug_info(void)
-{
-	read_wakup_source_config();
-	INFO("PWM CONFIG    : 0x%x\n", pwm_regulators);
-	read_gpio_power_info();
 }
 
 static void report_wakeup_source(void)
@@ -632,16 +628,70 @@ static void report_wakeup_source(void)
 		INFO("\tPCIE interrupt wakeup\n");
 }
 
+static void get_pwm_regulator_info(void)
+{
+	INFO("PWM CONFIG[0x%x]:\n", pwm_regulators);
+
+	if (!pwm_regulators) {
+		INFO("\tnot config\n");
+		return;
+	}
+	if (pwm_regulators & PWM0_REGULATOR_EN)
+		INFO("\tPWM: PWM0_REGULATOR_EN\n");
+	if (pwm_regulators & PWM1_REGULATOR_EN)
+		INFO("\tPWM: PWM1_REGULATOR_EN\n");
+	if (pwm_regulators & PWM2_REGULATOR_EN)
+		INFO("\tPWM: PWM2D_REGULATOR_EN\n");
+	if (pwm_regulators & PWM3A_REGULATOR_EN)
+		INFO("\tPWM: PWM3A_REGULATOR_EN\n");
+	if (pwm_regulators & PWM3B_REGULATOR_EN)
+		INFO("\tPWM: PWM3B_REGULATOR_EN\n");
+}
+
+static void get_apios_voltage_domain_info(void)
+{
+	INFO("APIOS info[0x%x]:\n", suspend_apios);
+
+	if (!suspend_apios) {
+		INFO("\tnot config\n");
+		return;
+	}
+	if (suspend_apios & RKPM_APIO0_SUSPEND)
+		INFO("\tAPIOS: APIO0 suspend\n");
+	if (suspend_apios & RKPM_APIO1_SUSPEND)
+		INFO("\tAPIOS: APIO1 suspend\n");
+	if (suspend_apios & RKPM_APIO2_SUSPEND)
+		INFO("\tAPIOS: APIO2 suspend\n");
+	if (suspend_apios & RKPM_APIO3_SUSPEND)
+		INFO("\tAPIOS: APIO3 suspend\n");
+	if (suspend_apios & RKPM_APIO4_SUSPEND)
+		INFO("\tAPIOS: APIO4 suspend\n");
+	if (suspend_apios & RKPM_APIO5_SUSPEND)
+		INFO("\tAPIOS: APIO5 suspend\n");
+}
+
+/*the info about the susped mode, wake up source, the gpio pin control.*/
+static void pm_debug_info(void)
+{
+	get_suspend_mode_config();
+	get_wakup_source_config();
+	get_pwm_regulator_info();
+	get_apios_voltage_domain_info();
+	get_gpio_power_info();
+}
+
 void pmu_suspend_power(void)
 {
-	read_suspend_mode_config();
-	sleep_debug_info();
+	if (suspend_debug_enable)
+		console_init(PLAT_RK_UART_BASE, PLAT_RK_UART_CLOCK,
+			     PLAT_RK_UART_BAUDRATE);
+	pm_debug_info();
 	pmu_sleep_config();
 
 	/*
-	 * Disabling PLLs/PWM/DVFS is approaching WFI which is
-	 * the last steps in suspend.
-	 */
+	* Disabling PLLs/PWM/DVFS is approaching WFI which is
+	* the last steps in suspend.
+	*/
 	disable_dvfs_plls();
 	pwm_regulator_suspend();
 	disable_nodvfs_plls();
@@ -659,4 +709,6 @@ void pmu_resume_power(void)
 	udelay(300);
 	enable_dvfs_plls();
 	report_wakeup_source();
+	if (suspend_debug_enable)
+		console_uninit();
 }
