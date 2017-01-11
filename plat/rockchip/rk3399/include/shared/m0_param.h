@@ -28,38 +28,29 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __RK3399_MCU_H__
-#define __RK3399_MCU_H__
+#ifndef __M0_PARAM_H__
+#define __M0_PARAM_H__
 
-typedef unsigned int uint32_t;
+#ifndef __LINKER__
+enum {
+	M0_FUNC_SUSPEND = 0,
+	M0_FUNC_DRAM	= 1,
+};
+#endif /* __LINKER__ */
 
-#define mmio_read_32(c)	({unsigned int __v = \
-				(*(volatile unsigned int *)(c)); __v; })
-#define mmio_write_32(c, v)	((*(volatile unsigned int *)(c)) = (v))
+#define PARAM_ADDR		(0x5000)
 
-#define mmio_clrbits_32(addr, clear) \
-		mmio_write_32(addr, (mmio_read_32(addr) & ~(clear)))
-#define mmio_setbits_32(addr, set) \
-		mmio_write_32(addr, (mmio_read_32(addr)) | (set))
-#define mmio_clrsetbits_32(addr, clear, set) \
-		mmio_write_32(addr, (mmio_read_32(addr) & ~(clear)) | (set))
+#define PARAM_M0_FUNC		0x00
+#define PARAM_DRAM_FREQ		0x04
+#define PARAM_DPLL_CON0		0x08
+#define PARAM_DPLL_CON1		0x0c
+#define PARAM_DPLL_CON2		0x10
+#define PARAM_DPLL_CON3		0x14
+#define PARAM_DPLL_CON4		0x18
+#define PARAM_DPLL_CON5		0x1c
+#define PARAM_FREQ_SELECT	0x20
+#define PARAM_M0_DONE		0x24
+#define PARAM_M0_SIZE		0x28
+#define M0_DONE_FLAG		0xf59ec39a
 
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-
-#define MCU_BASE			0x40000000
-#define PMU_BASE			(MCU_BASE + 0x07310000)
-#define CRU_BASE_ADDR			0x47760000
-#define GRF_BASE_ADDR			0x47770000
-#define PMU_CRU_BASE_ADDR		0x47750000
-#define VOP_LITE_BASE_ADDR		0x478F0000
-#define VOP_BIG_BASE_ADDR		0x47900000
-#define CIC_BASE_ADDR			0x47620000
-
-void handle_suspend(void);
-void handle_dram(void);
-void stopwatch_init_usecs_expire(unsigned int usecs);
-int stopwatch_expired(void);
-void stopwatch_reset(void);
-
-#endif /* __RK3399_MCU_H__ */
+#endif /*__M0_PARAM_H__*/

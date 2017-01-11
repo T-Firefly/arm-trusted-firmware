@@ -47,9 +47,10 @@
 #include <pmu.h>
 #include <pmu_com.h>
 #include <bl31.h>
-#include <rk3399m0.h>
 #include <suspend.h>
+#include <m0_ctl.h>
 #include <rockchip_sip_svc.h>
+#include <dfs.h>
 
 DEFINE_BAKERY_LOCK(rockchip_pd_lock);
 

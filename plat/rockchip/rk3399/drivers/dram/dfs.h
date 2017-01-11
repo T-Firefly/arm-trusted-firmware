@@ -103,10 +103,11 @@ struct drv_odt_lp_config {
 	uint32_t phy_side_odt;
 };
 
-void ddr_dfs_init(void);
 uint32_t ddr_set_rate(uint32_t hz);
 uint32_t ddr_round_rate(uint32_t hz);
 uint32_t ddr_get_rate(void);
-void clr_dcf_irq(void);
+void dram_dfs_init(void);
 uint32_t dts_timing_receive(uint32_t timing, uint32_t index);
+void ddr_prepare_for_sys_suspend(void);
+void ddr_prepare_for_sys_resume(void);
 #endif

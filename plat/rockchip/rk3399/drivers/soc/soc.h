@@ -305,6 +305,8 @@ struct deepsleep_data_s {
 #define GRF_DDRC0_CON1		0xe384
 #define GRF_DDRC1_CON0		0xe388
 #define GRF_DDRC1_CON1		0xe38c
+#define GRF_SOC_CON_BASE	0xe200
+#define GRF_SOC_CON(n)		(GRF_SOC_CON_BASE + (n) * 4)
 
 #define PMUCRU_CLKSEL_CON0	0x0080
 #define PMUCRU_CLKGATE_CON2	0x0108

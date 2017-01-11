@@ -48,7 +48,7 @@ static int ddr_smc_handler(uint64_t arg0, uint64_t arg1,
 {
 	switch (id) {
 	case CONFIG_DRAM_INIT:
-		ddr_dfs_init();
+		dram_dfs_init();
 		break;
 	case CONFIG_DRAM_SET_RATE:
 		return ddr_set_rate((uint32_t)arg0);
@@ -56,9 +56,6 @@ static int ddr_smc_handler(uint64_t arg0, uint64_t arg1,
 		return ddr_round_rate((uint32_t)arg0);
 	case CONFIG_DRAM_GET_RATE:
 		return ddr_get_rate();
-	case CONFIG_DRAM_CLR_IRQ:
-		clr_dcf_irq();
-		break;
 	case CONFIG_DRAM_SET_PARAM:
 		dts_timing_receive((uint32_t)arg0, (uint32_t)arg1);
 		break;

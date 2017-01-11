@@ -28,38 +28,27 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __RK3399_MCU_H__
-#define __RK3399_MCU_H__
+#include "rk3399_mcu.h"
 
-typedef unsigned int uint32_t;
+#define PMU_PWRMODE_CON		0x20
+#define PMU_POWER_ST		0x78
 
-#define mmio_read_32(c)	({unsigned int __v = \
-				(*(volatile unsigned int *)(c)); __v; })
-#define mmio_write_32(c, v)	((*(volatile unsigned int *)(c)) = (v))
+#define M0_SCR			0xe000ed10  /* System Control Register (SCR) */
 
-#define mmio_clrbits_32(addr, clear) \
-		mmio_write_32(addr, (mmio_read_32(addr) & ~(clear)))
-#define mmio_setbits_32(addr, set) \
-		mmio_write_32(addr, (mmio_read_32(addr)) | (set))
-#define mmio_clrsetbits_32(addr, clear, set) \
-		mmio_write_32(addr, (mmio_read_32(addr) & ~(clear)) | (set))
+#define SCR_SLEEPDEEP_SHIFT	(1 << 2)
 
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
+void handle_suspend(void)
+{
+	unsigned int status_value;
 
-#define MCU_BASE			0x40000000
-#define PMU_BASE			(MCU_BASE + 0x07310000)
-#define CRU_BASE_ADDR			0x47760000
-#define GRF_BASE_ADDR			0x47770000
-#define PMU_CRU_BASE_ADDR		0x47750000
-#define VOP_LITE_BASE_ADDR		0x478F0000
-#define VOP_BIG_BASE_ADDR		0x47900000
-#define CIC_BASE_ADDR			0x47620000
+	while (1) {
+		status_value = mmio_read_32(PMU_BASE + PMU_POWER_ST);
+		if (status_value) {
+			mmio_clrbits_32(PMU_BASE + PMU_PWRMODE_CON, 0x01);
+			return;
+		}
+	}
 
-void handle_suspend(void);
-void handle_dram(void);
-void stopwatch_init_usecs_expire(unsigned int usecs);
-int stopwatch_expired(void);
-void stopwatch_reset(void);
-
-#endif /* __RK3399_MCU_H__ */
+	/* m0 enter deep sleep mode */
+	mmio_setbits_32(M0_SCR, SCR_SLEEPDEEP_SHIFT);
+}

@@ -46,11 +46,15 @@ export Q
 
 .SUFFIXES:
 
-INCLUDES		+= -Iinclude/
+INCLUDES		+= -Iinclude/ \
+			   -I../../include/shared/
 
 # NOTE: Add C source files here
 C_SOURCES		:= src/startup.c \
-			   src/main.c
+			   src/main.c	\
+			   src/suspend.c \
+			   src/dram.c	\
+			   src/stopwatch.c
 
 # Flags definition
 CFLAGS			:= -g

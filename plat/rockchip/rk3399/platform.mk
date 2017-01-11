@@ -42,6 +42,7 @@ PLAT_INCLUDES           :=	-I${RK_PLAT_COMMON}/				\
                                 -I${RK_PLAT_SOC}/drivers/dram/			\
 				-Idrivers/arm/gic/common/			\
                                 -I${RK_PLAT_SOC}/include/                       \
+				-I${RK_PLAT_SOC}/include/shared/	\
 
 RK_GIC_SOURCES          :=      drivers/arm/gic/common/gic_common.c     \
                                 drivers/arm/gic/v3/gicv3_main.c         \
@@ -79,6 +80,7 @@ BL31_SOURCES            +=      ${RK_GIC_SOURCES}                               
                                 ${RK_PLAT_SOC}/drivers/pmu/pmu.c                \
                                 ${RK_PLAT_SOC}/drivers/pmu/pmu_fw.c             \
 				${RK_PLAT_SOC}/drivers/pmu/pm_config.c		\
+				${RK_PLAT_SOC}/drivers/pmu/m0_ctl.c		\
                                 ${RK_PLAT_SOC}/drivers/soc/soc.c		\
 				${RK_PLAT_SOC}/drivers/dram/dfs.c		\
                                 ${RK_PLAT_SOC}/drivers/dram/suspend.c           \
