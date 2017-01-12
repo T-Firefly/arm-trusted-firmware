@@ -860,43 +860,21 @@ static void clr_hw_idle(uint32_t hw_idle)
 	mmio_clrbits_32(PMU_BASE + PMU_BUS_CLR, hw_idle);
 }
 
-static void m0_clock_init(void)
+static void m0_configure_suspend(void)
 {
-	/* enable clocks for M0 */
-	mmio_write_32(PMUCRU_BASE + PMUCRU_CLKGATE_CON2,
-		      BITS_WITH_WMASK(0x0, 0x2f, 0));
-
-	/* switch the parent to xin24M and div == 1 */
-	mmio_write_32(PMUCRU_BASE + PMUCRU_CLKSEL_CON0,
-		      BIT_WITH_WMSK(15) | BITS_WITH_WMASK(0x0, 0x1f, 8));
-
-	/* start M0 */
-	mmio_write_32(PMUCRU_BASE + PMUCRU_SOFTRST_CON0,
-		      BITS_WITH_WMASK(0x0, 0x24, 0));
-
-	/* gating disable for M0 */
-	mmio_write_32(PMUCRU_BASE + PMUCRU_GATEDIS_CON0, BIT_WITH_WMSK(1));
+	/* set PARAM to M0_FUNC_SUSPEND */
+	mmio_write_32(M0_PARAM_ADDR + PARAM_M0_FUNC, M0_FUNC_SUSPEND);
 }
 
-static void m0_reset(void)
-{
-	/* stop M0 */
-	mmio_write_32(PMUCRU_BASE + PMUCRU_SOFTRST_CON0,
-		      BITS_WITH_WMASK(0x24, 0x24, 0));
 
-	/* recover gating bit for M0 */
-	mmio_write_32(PMUCRU_BASE + PMUCRU_GATEDIS_CON0, WMSK_BIT(1));
-
-	/* disable clocks for M0 */
-	mmio_write_32(PMUCRU_BASE + PMUCRU_CLKGATE_CON2,
-		      BITS_WITH_WMASK(0x2f, 0x2f, 0));
-}
 
 static int sys_pwr_domain_suspend(void)
 {
 	uint32_t wait_cnt = 0;
 	uint32_t status = 0;
 
+	/* suspend with a fixed freq like 400MHz */
+	ddr_prepare_for_sys_suspend();
 	dmc_save();
 	pmu_scu_b_pwrdn();
 
@@ -912,7 +890,8 @@ static int sys_pwr_domain_suspend(void)
 
 	sys_slp_prepare();
 
-	m0_clock_init();
+	m0_configure_suspend();
+	m0_start();
 
 	mmio_write_32(SGRF_BASE + SGRF_SOC_CON0_1(1),
 		      (PMUSRAM_BASE >> CPU_BOOT_ADDR_ALIGN) |
@@ -940,7 +919,6 @@ static int sys_pwr_domain_suspend(void)
 	secure_watchdog_disable();
 
 	pmu_suspend_power();
-	secure_timer_disable();
 
 	return 0;
 }
@@ -955,10 +933,6 @@ static int sys_pwr_domain_resume(void)
 	pmu_resume_power();
 
 	secure_watchdog_restore();
-
-	/* restore clk_ddrc_bpll_src_en gate */
-	mmio_write_32(CRU_BASE + CRU_CLKGATE_CON(3),
-		      BITS_WITH_WMASK(clk_ddrc_save, 0xff, 0));
 
 	/*
 	 * The wakeup status is not cleared by itself, we need to clear it
@@ -1011,6 +985,10 @@ static int sys_pwr_domain_resume(void)
 	sram_func_set_ddrctl_pll(DPLL_ID);
 	restore_abpll();
 
+	/* restore clk_ddrc_bpll_src_en gate */
+	mmio_write_32(CRU_BASE + CRU_CLKGATE_CON(3),
+		      BITS_WITH_WMASK(clk_ddrc_save, 0xff, 0));
+
 	clr_hw_idle(BIT(PMU_CLR_CENTER1) |
 				BIT(PMU_CLR_ALIVE) |
 				BIT(PMU_CLR_MSCH0) |
@@ -1022,7 +1000,10 @@ static int sys_pwr_domain_resume(void)
 
 	plat_rockchip_gic_cpuif_enable();
 
-	m0_reset();
+	m0_stop();
+
+	/* recover the previous ddr freq */
+	ddr_prepare_for_sys_resume();
 
 	return 0;
 }
