@@ -325,8 +325,6 @@ int remotectl_sip_handler(uint32_t param, uint32_t data)
 	struct rkxx_remotectl_drvdata *ddata = &g_ddata;
 	static uint32_t num;
 
-	INFO("%s, param=0x%x, data=0x%x\n", __func__, param, data);
-
 	switch (param) {
 	case REMOTECTL_SET_IRQ:
 		ddata->irq = data;
