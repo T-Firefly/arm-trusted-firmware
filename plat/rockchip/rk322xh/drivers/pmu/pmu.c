@@ -41,6 +41,7 @@
 #include <remotectl_pwm.h>
 #include <rk322xh_def.h>
 #include <soc.h>
+#include <sram.h>
 #include <pmu_com.h>
 
 DEFINE_BAKERY_LOCK(rockchip_pd_lock);
@@ -85,51 +86,8 @@ struct rk322xh_sleep_sram_data {
 
 __sramdata static struct rk322xh_sleep_sram_data sram_data;
 
-__sramfunc static void sram_putchar(char ch)
-{
-	mmio_write_32(UART2_BASE, ch);
-	if (ch == '\n')
-		mmio_write_32(UART2_BASE, '\r');
-
-	while (mmio_read_32(UART2_BASE + UART_LSR) & UART_FIFO_EMPTY)
-		;
-}
-
-static __sramfunc uint64_t arch_counter_get_cntpct(void)
-{
-	uint64_t cval;
-
-	isb();
-	cval = read_cntpct_el0();
-
-	return cval;
-}
-
-static __sramfunc void sram_udelay(uint32_t us)
-{
-	uint64_t orig;
-	uint64_t to_wait = 24 * us;
-
-	/* Note: u32 math is way more than enough for our small delays */
-	orig = arch_counter_get_cntpct();
-	while (arch_counter_get_cntpct() - orig <= to_wait)
-	       ;
-}
 
 #if RK322XH_SUSPEND_DEBUG
-__sramfunc static void sram_print_num(int val)
-{
-	int i;
-	int tmp = val;
-
-	for (i = 1; tmp / 10; tmp /= 10, i *= 10)
-		;
-	for (; i >= 1; i /= 10) {
-		sram_putchar('0' + (char)(val / i));
-		val %= i;
-	}
-	sram_putchar('\n');
-}
 
 static inline void print_hex(uint32_t val)
 {

@@ -38,6 +38,7 @@ PLAT_INCLUDES		:=	-Idrivers/arm/gic/common/			\
 				-I${RK_PLAT_COMMON}/pmusram                     \
 				-I${RK_PLAT_COMMON}/drivers/pmu/                     \
 				-I${RK_PLAT_COMMON}/drivers/parameter/		\
+				-I${RK_PLAT_COMMON}/drivers/sram/		\
 				-I${RK_PLAT_SOC}/				\
 				-I${RK_PLAT_SOC}/drivers/pmu/			\
 				-I${RK_PLAT_SOC}/drivers/soc/			\
@@ -75,6 +76,7 @@ BL31_SOURCES	+=	${RK_GIC_SOURCES}				\
 				${RK_PLAT_COMMON}/plat_topology.c		\
 				${RK_PLAT_COMMON}/aarch64/platform_common.c	\
 				${RK_PLAT_COMMON}/rockchip_sip_svc.c		\
+				${RK_PLAT_COMMON}/drivers/sram/sram.c		\
 				${RK_PLAT_SOC}/plat_sip_calls.c			\
 				${RK_PLAT_SOC}/drivers/pmu/pmu.c		\
 				${RK_PLAT_SOC}/drivers/soc/soc.c		\
