@@ -470,7 +470,7 @@ static void pm_plls_suspend(void)
 
 	/* clk_rtc32k */
 	mmio_write_32(CRU_BASE + CRU_CLKSEL_CON(38),
-		      BITS_WITH_WMASK(767, 0x3fff, 0) |
+		      BITS_WITH_WMASK(732, 0x3fff, 0) |
 		      BITS_WITH_WMASK(2, 0x3, 14));
 }
 
