@@ -124,9 +124,6 @@ func console_core_putc
 	cmp	w2, #(UARTLSR_TEMT | UARTLSR_THRE)
 	b.ne	2b
 	str	w0, [x1, #UARTTX]
-	ldr	w2, [x1, #UARTFCR]
-	orr	w2, w2, #UARTFCR_TXCLR
-	str	w2, [x1, #UARTFCR]
 	ret
 putc_error:
 	mov	w0, #-1
