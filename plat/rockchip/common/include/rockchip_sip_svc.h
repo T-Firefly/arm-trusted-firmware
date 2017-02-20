@@ -58,6 +58,17 @@
 /* RK_SIP_MCU_EL3FIQ_CFG */
 #define FIQ_INIT_HANDLER		0x01
 
+/* RK_SIP_DDR_CFG32 child configs */
+#define CONFIG_DRAM_INIT		0x00
+#define CONFIG_DRAM_SET_RATE		0x01
+#define CONFIG_DRAM_ROUND_RATE		0x02
+#define CONFIG_DRAM_SET_AT_SR		0x03
+#define CONFIG_DRAM_GET_BW		0x04
+#define CONFIG_DRAM_GET_RATE		0x05
+#define CONFIG_DRAM_CLR_IRQ		0x06
+#define CONFIG_DRAM_SET_PARAM		0x07
+#define CONFIG_DRAM_GET_VERSION		0x08
+
 /* Rockchip SiP Service Calls version numbers */
 #define RK_SIP_SVC_VERSION_MAJOR	0x0
 #define RK_SIP_SVC_VERSION_MINOR	0x1
@@ -81,6 +92,7 @@
 typedef enum {
 	SHARE_PAGE_TYPE_INVALID = 0,
 	SHARE_PAGE_TYPE_UARTDBG,
+	SHARE_PAGE_TYPE_DDR,
 	SHARE_PAGE_TYPE_MAX,
 } share_page_type_t;
 

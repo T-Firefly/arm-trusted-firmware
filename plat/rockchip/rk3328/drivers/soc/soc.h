@@ -96,6 +96,7 @@ enum plls_id {
 #define GRF_SOC_CON(n)			(0x400 + (n) * 4)
 #define GRF_SOC_STATUS(n)		(0x480 + (n) * 4)
 #define GRF_CPU_STATUS(n)		(0x520 + (n) * 4)
+#define GRF_OS_REG(n)			(0x5c8 + (n) * 4)
 #define DDRGRF_SOC_CON(n)		(0x000 + (n) * 4)
 #define DDRGRF_SOC_STATUS(n)		(0x100 + (n) * 4)
 #define SGRF_SOC_CON(n)			(0x000 + (n) * 4)

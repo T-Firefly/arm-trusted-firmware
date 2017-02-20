@@ -158,7 +158,7 @@ static void gic_set_sgir_except_self(size_t it)
 	gicd_write_sgir(PLAT_RK_GICD_BASE, REQ_SGI_EXCEPT_SELF | it);
 }
 
-static int fiq_pending_cpus_except_self(void)
+int fiq_dfs_stop_cpus(void)
 {
 	int i, ret = 0;
 
@@ -177,7 +177,7 @@ static int fiq_pending_cpus_except_self(void)
 	return ret;
 }
 
-static void fiq_active_cpus_except_self(void)
+void fiq_dfs_active_cpus(void)
 {
 	uint32_t i;
 
@@ -186,29 +186,6 @@ static void fiq_active_cpus_except_self(void)
 	dsb();
 
 	__asm("sev");
-}
-
-void fiq_dfs_stop_cpus(void)
-{
-	uint32_t cpu = plat_my_core_pos();
-
-	/* disable local cpu's all exceptions */
-	cpu_daif[cpu] = read_daif();
-	write_daifset(DISABLE_ALL_EXCEPTIONS);
-
-	/* send SGI6, force other cpus run into wfe */
-	while (fiq_pending_cpus_except_self() != 0)
-		fiq_active_cpus_except_self();
-}
-
-void fiq_dfs_active_cpus(void)
-{
-	uint32_t cpu = plat_my_core_pos();
-
-	/* restore exceptions */
-	write_daif(cpu_daif[cpu]);
-
-	fiq_active_cpus_except_self();
 }
 
 static int mcu_dfs_request_handler(uint32_t irqstat, uint32_t flags,

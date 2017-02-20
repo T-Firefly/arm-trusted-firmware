@@ -89,12 +89,16 @@ BL31_SOURCES		+=	${RK_GIC_SOURCES}				\
 
 ROCKCHIP_PRT_INCLUDES	:=	-I${RK_PLAT_COMMON}/drivers/efuse/		\
 				-I${RK_PLAT_SOC_PRT}/drivers/pwm/		\
+				-I${RK_PLAT_SOC_PRT}/drivers/dram/		\
 				-I${RK_PLAT_SOC_PRT}/drivers/monitor/
 
 PLAT_INCLUDES		+=	${ROCKCHIP_PRT_INCLUDES}
 
 ROCKCHIP_PRT		:=	${RK_PLAT_COMMON}/drivers/efuse/efuse.c		\
                     		${RK_PLAT_SOC_PRT}/drivers/pwm/pwm_remotectl.c	\
+				${RK_PLAT_SOC_PRT}/drivers/dram/dfs.c		\
+				${RK_PLAT_SOC_PRT}/drivers/dram/dram.c		\
+				${RK_PLAT_SOC_PRT}/drivers/dram/dram_spec_timing.c	\
 				${RK_PLAT_SOC_PRT}/drivers/monitor/monitor.c
 
 BL31_SOURCES    += ${ROCKCHIP_PRT}

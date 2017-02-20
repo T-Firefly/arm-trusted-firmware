@@ -28,6 +28,7 @@
 #ifndef __FIQ_DFS_H__
 #define __FIQ_DFS_H__
 
+#include <stdint.h>
 #include <rockchip_sip_svc.h>
 
 /*
@@ -45,7 +46,7 @@
  *	6. fiq_dfs_active_cpus() to active cpus.
  */
 
-void fiq_dfs_stop_cpus(void);
+int fiq_dfs_stop_cpus(void);
 void fiq_dfs_active_cpus(void);
 void fiq_dfs_flush_l1(void);
 void fiq_dfs_flush_l2(void);

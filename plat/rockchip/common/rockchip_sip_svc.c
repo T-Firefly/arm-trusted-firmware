@@ -26,10 +26,12 @@
 
 #include <assert.h>
 #include <debug.h>
+#include <fiq_dfs.h>
 #include <mmio.h>
 #include <plat_sip_calls.h>
 #include <rockchip_sip_svc.h>
 #include <runtime_svc.h>
+#include <string.h>
 #include <uuid.h>
 #include <xlat_tables.h>
 
@@ -51,8 +53,8 @@ int sip_version_handler(struct arm_smccc_res *res)
 /****************************** share mem smc *********************************/
 #pragma weak fiq_debugger_smc_handler
 uint64_t fiq_debugger_smc_handler(uint64_t fun_id, void *handle,
-                                 uint64_t arg0, uint64_t arg1,
-                                 struct arm_smccc_res *res)
+				  uint64_t arg0, uint64_t arg1,
+				  struct arm_smccc_res *res)
 {
 	ERROR("%s: unhandled SMC (0x%lx)\n", __func__, fun_id);
 	return 0;
@@ -209,6 +211,100 @@ uint64_t rockchip_plat_sip_handler(uint32_t smc_fid,
 	SMC_RET1(handle, SMC_UNK);
 }
 
+#pragma weak ddr_dfs_init
+#pragma weak ddr_set_rate
+#pragma weak ddr_round_rate
+#pragma weak ddr_get_rate
+#pragma weak ddr_get_version
+#pragma weak ddr_set_auto_self_refresh
+#pragma weak ddr_plat_smc_handler
+
+void ddr_dfs_init(uint32_t page_type)
+{
+	INFO("default ddr_dfs_init()\n");
+}
+
+uint32_t ddr_set_rate(uint32_t page_type)
+{
+	INFO("default ddr_set_rate()\n");
+	return SIP_RET_NOT_SUPPORTED;
+}
+
+uint32_t ddr_round_rate(uint32_t page_type)
+{
+	INFO("default ddr_round_rate()\n");
+	return SIP_RET_NOT_SUPPORTED;
+}
+
+uint32_t ddr_get_rate(void)
+{
+	INFO("default ddr_get_rate()\n");
+	return SIP_RET_NOT_SUPPORTED;
+}
+
+uint32_t ddr_get_version(void)
+{
+	INFO("default ddr_get_version()\n");
+	return SIP_RET_NOT_SUPPORTED;
+}
+
+void ddr_set_auto_self_refresh(uint32_t page_type)
+{
+	INFO("default ddr_set_auto_self_refresh()\n");
+}
+
+int ddr_plat_smc_handler(uint64_t arg0, uint64_t arg1,
+			 uint64_t id, struct arm_smccc_res *res)
+{
+	INFO("default ddr_plat_smc_handler()\n");
+	ERROR("%s: unhandled DDR SMC id(0x%lx)\n", __func__, id);
+	return SIP_RET_NOT_SUPPORTED;
+}
+
+/*
+ * return: 0 smc call SUCCESS, other smc call FAIL
+ * res->a1, function return value
+ */
+static int ddr_smc_handler(uint64_t arg0, uint64_t arg1,
+			   uint64_t id, struct arm_smccc_res *res)
+{
+	switch (id) {
+	case CONFIG_DRAM_INIT:
+		cpu_dfs_governor_register();
+		VERBOSE("ddr_dfs_init:%x\n", (uint32_t)arg0);
+		ddr_dfs_init((uint32_t)arg0);
+		break;
+	case CONFIG_DRAM_SET_RATE:
+		VERBOSE("ddr_set_rate:%x\n", (uint32_t)arg0);
+		res->a1 = ddr_set_rate((uint32_t)arg0);
+		VERBOSE("ddr_set_rate ret:%d\n", (uint32_t)res->a1);
+		break;
+	case CONFIG_DRAM_ROUND_RATE:
+		VERBOSE("ddr_round_rate:%x\n", (uint32_t)arg0);
+		res->a1 = ddr_round_rate((uint32_t)arg0);
+		VERBOSE("ddr_round_rate ret:%d\n", (uint32_t)res->a1);
+		break;
+	case CONFIG_DRAM_GET_RATE:
+		VERBOSE("ddr_get_rate\n");
+		res->a1 = ddr_get_rate();
+		VERBOSE("ddr_get_rate ret:%d\n", (uint32_t)res->a1);
+		break;
+	case CONFIG_DRAM_GET_VERSION:
+		VERBOSE("ddr_get_version\n");
+		res->a1 = ddr_get_version();
+		VERBOSE("ddr_get_version ret:%lx\n", res->a1);
+		break;
+	case CONFIG_DRAM_SET_AT_SR:
+		VERBOSE("ddr_set_auto_self_refresh:%x\n", (uint32_t)arg0);
+		ddr_set_auto_self_refresh((uint32_t)arg0);
+		break;
+	default:
+		return ddr_plat_smc_handler(arg0, arg1, id, res);
+	}
+
+	return SIP_RET_SUCCESS;
+}
+
 /*
  * This function is responsible for handling all SiP calls from the NS world
  */
@@ -243,7 +339,7 @@ uint64_t sip_smc_handler(uint32_t smc_fid,
 	case SIP_SVC_VERSION:
 		/* Return the version of current implementation */
 		SMC_RET2(handle, RK_SIP_SVC_VERSION_MAJOR,
-			RK_SIP_SVC_VERSION_MINOR);
+			 RK_SIP_SVC_VERSION_MINOR);
 
 	case RK_SIP_SIP_VERSION32:
 		ret = sip_version_handler(&res);
@@ -260,6 +356,11 @@ uint64_t sip_smc_handler(uint32_t smc_fid,
 	case RK_SIP_ACCESS_REG32:
 		ret = regs_access(x1, x2, x3, &res);
 		SMC_RET2(handle, ret, res.a1);
+
+	case RK_SIP_DDR_CFG32:
+		memset(&res, 0, sizeof(res));
+		ret = ddr_smc_handler(x1, x2, x3, &res);
+		SMC_RET4(handle, ret, res.a1, res.a2, res.a3);
 
 	default:
 		return rockchip_plat_sip_handler(smc_fid, x1, x2, x3, x4,
