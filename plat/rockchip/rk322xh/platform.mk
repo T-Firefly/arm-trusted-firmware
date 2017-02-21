@@ -39,10 +39,12 @@ PLAT_INCLUDES		:=	-Idrivers/arm/gic/common/			\
 				-I${RK_PLAT_COMMON}/drivers/pmu/                     \
 				-I${RK_PLAT_COMMON}/drivers/parameter/		\
 				-I${RK_PLAT_COMMON}/drivers/sram/		\
+				-I${RK_PLAT_COMMON}/drivers/efuse/		\
 				-I${RK_PLAT_SOC}/				\
 				-I${RK_PLAT_SOC}/drivers/pmu/			\
 				-I${RK_PLAT_SOC}/drivers/soc/			\
 				-I${RK_PLAT_SOC}/drivers/pwm/			\
+				-I${RK_PLAT_SOC}/drivers/monitor/		\
 				-Idrivers/arm/gic/common/			\
 				-Iinclude/plat/common/				\
 				-I${RK_PLAT_SOC}/include/			\
@@ -77,10 +79,12 @@ BL31_SOURCES	+=	${RK_GIC_SOURCES}				\
 				${RK_PLAT_COMMON}/aarch64/platform_common.c	\
 				${RK_PLAT_COMMON}/rockchip_sip_svc.c		\
 				${RK_PLAT_COMMON}/drivers/sram/sram.c		\
+				${RK_PLAT_COMMON}/drivers/efuse/efuse.c		\
 				${RK_PLAT_SOC}/plat_sip_calls.c			\
 				${RK_PLAT_SOC}/drivers/pmu/pmu.c		\
 				${RK_PLAT_SOC}/drivers/soc/soc.c		\
 				${RK_PLAT_SOC}/drivers/pwm/remotectl_pwm.c	\
+				${RK_PLAT_SOC}/drivers/monitor/monitor.c	\
 
 ENABLE_PLAT_COMPAT 	:=      0
 

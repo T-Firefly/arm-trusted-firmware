@@ -112,7 +112,7 @@
  ******************************************************************************/
 #define ADDR_SPACE_SIZE		(1ull << 32)
 #define MAX_XLAT_TABLES		9
-#define MAX_MMAP_REGIONS	27
+#define MAX_MMAP_REGIONS	29
 
 /*******************************************************************************
  * Declarations and constants to access the mailboxes safely. Each mailbox is
@@ -146,5 +146,8 @@
 #define PLAT_RK_PRIMARY_CPU	0x0
 
 #define RK_PLAT_AARCH_CFG	RK_PLAT_CFG0
+
+#define PLAT_RK_SOC		3228
+#define PLATFORM_IS_RK(plat)	(plat == PLAT_RK_SOC)
 
 #endif /* __PLATFORM_DEF_H__ */

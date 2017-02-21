@@ -153,12 +153,6 @@ static uint64_t gic_handle_except(uint32_t id,
 		irqstat = plat_ic_acknowledge_interrupt();
 		irqnr = irqstat & GICC_IAR_INT_ID_MASK;
 
-		/* MMU not enable(the time that cpu boots up in EL1), skip */
-		if ((read_sctlr_el1() & SCTLR_M_BIT) != SCTLR_M_BIT) {
-			plat_ic_end_of_interrupt(irqnr);
-			return 0;
-		}
-
 		if (irqnr > 15 && irqnr < 1021) {
 			ret = gic_handle_irq(irqnr, flags, handle, cookie);
 			if (ret == GIC_RET_UARTDBG) {
@@ -169,7 +163,8 @@ static uint64_t gic_handle_except(uint32_t id,
 			plat_ic_end_of_interrupt(irqnr);
 			continue;
 		}
-		if ((irqnr < 16) || (irqnr > 1020)) {
+
+		if (irqnr < 16) {
 			plat_ic_end_of_interrupt(irqstat);
 			continue;
 		}

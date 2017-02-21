@@ -32,7 +32,7 @@
 #define __PLAT_DEF_H__
 
 #define MAJOR_VERSION		(1)
-#define MINOR_VERSION		(0)
+#define MINOR_VERSION		(1)
 
 #define SIZE_K(n)		((n) * 1024)
 
@@ -99,6 +99,12 @@
 
 #define DDR_PARAM_BASE		0x02000000
 #define DDR_PARAM_SIZE		SIZE_K(4)
+
+#define EFUSE8_BASE		0xff260000
+#define EFUSE8_SIZE		SIZE_K(4)
+
+#define EFUSE32_BASE		0xff0b0000
+#define EFUSE32_SIZE		SIZE_K(4)
 
 /**************************************************************************
  * UART related constants

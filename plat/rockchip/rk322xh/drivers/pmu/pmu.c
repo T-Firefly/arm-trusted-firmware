@@ -33,6 +33,7 @@
 #include <delay_timer.h>
 #include <errno.h>
 #include <mmio.h>
+#include <monitor.h>
 #include <platform.h>
 #include <platform_def.h>
 #include <plat_private.h>
@@ -969,6 +970,7 @@ void plat_rockchip_pmu_init(void)
 	nonboot_cpus_off();
 
 	rk_register_handler();
+	rk_soc_monitor_init();
 
 	INFO("%s: pd status 0x%x\n", __func__, pmu_read32(PMU_PWRDN_ST));
 }

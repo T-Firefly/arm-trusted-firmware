@@ -75,6 +75,10 @@ const mmap_region_t plat_rk_mmap[] = {
 			MT_DEVICE | MT_RW | MT_SECURE),
 	MAP_REGION_FLAT(DDR_PARAM_BASE, DDR_PARAM_SIZE,
 			MT_DEVICE | MT_RW | MT_SECURE),
+	MAP_REGION_FLAT(EFUSE8_BASE, EFUSE8_SIZE,
+			MT_DEVICE | MT_RW | MT_SECURE),
+	MAP_REGION_FLAT(EFUSE32_BASE, EFUSE32_SIZE,
+			MT_DEVICE | MT_RW | MT_SECURE),
 	{ 0 }
 };
 
@@ -146,5 +150,5 @@ void plat_rockchip_soc_init(void)
 	secure_timer_init();
 	sgrf_init();
 
-	NOTICE("BL31: Release version: %d.%d\n", MAJOR_VERSION, MINOR_VERSION);
+	NOTICE("BL31: Release version: v%d.%d\n", MAJOR_VERSION, MINOR_VERSION);
 }

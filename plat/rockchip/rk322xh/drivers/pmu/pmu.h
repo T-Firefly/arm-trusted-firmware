@@ -112,7 +112,7 @@ enum pmu_sft_con {
 
 #define WAKEUP_INT_CLUSTER_EN	0x1
 #define PMIC_SLEEP_REG		0x34
-#define GRF_GPIO2A_IOMUX	0x20
+/* #define GRF_GPIO2A_IOMUX	0x20 */
 
 #define IS_PLL_LOKED(pll_id)	\
 		!!(cru_read32(PLL_CONS(pll_id, 1)) & PLL_IS_LOCKED)
