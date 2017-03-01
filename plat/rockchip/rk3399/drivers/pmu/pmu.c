@@ -630,7 +630,7 @@ static void nonboot_cpus_off(void)
 	}
 }
 
-static int cores_pwr_domain_on(unsigned long mpidr, uint64_t entrypoint)
+int rockchip_soc_cores_pwr_dm_on(unsigned long mpidr, uint64_t entrypoint)
 {
 	uint32_t cpu_id = plat_core_pos_by_mpidr(mpidr);
 
@@ -642,19 +642,20 @@ static int cores_pwr_domain_on(unsigned long mpidr, uint64_t entrypoint)
 
 	cpus_power_domain_on(cpu_id);
 
-	return 0;
+	return PSCI_E_SUCCESS;
 }
 
-static int cores_pwr_domain_off(void)
+int rockchip_soc_cores_pwr_dm_off(void)
 {
 	uint32_t cpu_id = plat_my_core_pos();
 
 	cpus_power_domain_off(cpu_id, core_pwr_wfi);
 
-	return 0;
+	return PSCI_E_SUCCESS;
 }
 
-static int hlvl_pwr_domain_off(uint32_t lvl, plat_local_state_t lvl_state)
+int rockchip_soc_hlvl_pwr_dm_off(uint32_t lvl,
+				 plat_local_state_t lvl_state)
 {
 	switch (lvl) {
 	case MPIDR_AFFLVL1:
@@ -664,10 +665,10 @@ static int hlvl_pwr_domain_off(uint32_t lvl, plat_local_state_t lvl_state)
 		break;
 	}
 
-	return 0;
+	return PSCI_E_SUCCESS;
 }
 
-static int cores_pwr_domain_suspend(void)
+int rockchip_soc_cores_pwr_dm_suspend(void)
 {
 	uint32_t cpu_id = plat_my_core_pos();
 
@@ -679,10 +680,10 @@ static int cores_pwr_domain_suspend(void)
 
 	cpus_power_domain_off(cpu_id, core_pwr_wfi_int);
 
-	return 0;
+	return PSCI_E_SUCCESS;
 }
 
-static int hlvl_pwr_domain_suspend(uint32_t lvl, plat_local_state_t lvl_state)
+int rockchip_soc_hlvl_pwr_dm_suspend(uint32_t lvl, plat_local_state_t lvl_state)
 {
 	switch (lvl) {
 	case MPIDR_AFFLVL1:
@@ -692,20 +693,20 @@ static int hlvl_pwr_domain_suspend(uint32_t lvl, plat_local_state_t lvl_state)
 		break;
 	}
 
-	return 0;
+	return PSCI_E_SUCCESS;
 }
 
-static int cores_pwr_domain_on_finish(void)
+int rockchip_soc_cores_pwr_dm_on_finish(void)
 {
 	uint32_t cpu_id = plat_my_core_pos();
 
 	mmio_write_32(PMU_BASE + PMU_CORE_PM_CON(cpu_id),
 		      CORES_PM_DISABLE);
-	return 0;
+	return PSCI_E_SUCCESS;
 }
 
-static int hlvl_pwr_domain_on_finish(uint32_t lvl,
-				     plat_local_state_t lvl_state)
+int rockchip_soc_hlvl_pwr_dm_on_finish(uint32_t lvl,
+				       plat_local_state_t lvl_state)
 {
 	switch (lvl) {
 	case MPIDR_AFFLVL1:
@@ -715,20 +716,20 @@ static int hlvl_pwr_domain_on_finish(uint32_t lvl,
 		break;
 	}
 
-	return 0;
+	return PSCI_E_SUCCESS;
 }
 
-static int cores_pwr_domain_resume(void)
+int rockchip_soc_cores_pwr_dm_resume(void)
 {
 	uint32_t cpu_id = plat_my_core_pos();
 
 	/* Disable core_pm */
 	mmio_write_32(PMU_BASE + PMU_CORE_PM_CON(cpu_id), CORES_PM_DISABLE);
 
-	return 0;
+	return PSCI_E_SUCCESS;
 }
 
-static int hlvl_pwr_domain_resume(uint32_t lvl, plat_local_state_t lvl_state)
+int rockchip_soc_hlvl_pwr_dm_resume(uint32_t lvl, plat_local_state_t lvl_state)
 {
 	switch (lvl) {
 	case MPIDR_AFFLVL1:
@@ -737,7 +738,7 @@ static int hlvl_pwr_domain_resume(uint32_t lvl, plat_local_state_t lvl_state)
 		break;
 	}
 
-	return 0;
+	return PSCI_E_SUCCESS;
 }
 
 /**
@@ -869,7 +870,7 @@ static void m0_configure_suspend(void)
 
 
 
-static int sys_pwr_domain_suspend(void)
+int rockchip_soc_sys_pwr_dm_suspend(void)
 {
 	uint32_t wait_cnt = 0;
 	uint32_t status = 0;
@@ -924,7 +925,7 @@ static int sys_pwr_domain_suspend(void)
 	return 0;
 }
 
-static int sys_pwr_domain_resume(void)
+int rockchip_soc_sys_pwr_dm_resume(void)
 {
 	uint32_t wait_cnt = 0;
 	uint32_t status = 0;
@@ -1009,7 +1010,7 @@ static int sys_pwr_domain_resume(void)
 	return 0;
 }
 
-void __dead2 soc_soft_reset(void)
+void __dead2 rockchip_soc_soft_reset(void)
 {
 	struct gpio_info *rst_gpio;
 
@@ -1026,7 +1027,7 @@ void __dead2 soc_soft_reset(void)
 		;
 }
 
-void __dead2 soc_system_off(void)
+void __dead2 rockchip_soc_system_off(void)
 {
 	struct gpio_info *poweroff_gpio;
 
@@ -1051,28 +1052,11 @@ void __dead2 soc_system_off(void)
 		;
 }
 
-static struct rockchip_pm_ops_cb pm_ops = {
-	.cores_pwr_dm_on = cores_pwr_domain_on,
-	.cores_pwr_dm_off = cores_pwr_domain_off,
-	.cores_pwr_dm_on_finish = cores_pwr_domain_on_finish,
-	.cores_pwr_dm_suspend = cores_pwr_domain_suspend,
-	.cores_pwr_dm_resume = cores_pwr_domain_resume,
-	.hlvl_pwr_dm_suspend = hlvl_pwr_domain_suspend,
-	.hlvl_pwr_dm_resume = hlvl_pwr_domain_resume,
-	.hlvl_pwr_dm_off = hlvl_pwr_domain_off,
-	.hlvl_pwr_dm_on_finish = hlvl_pwr_domain_on_finish,
-	.sys_pwr_dm_suspend = sys_pwr_domain_suspend,
-	.sys_pwr_dm_resume = sys_pwr_domain_resume,
-	.sys_gbl_soft_reset = soc_soft_reset,
-	.system_off = soc_system_off,
-};
-
 void plat_rockchip_pmu_init(void)
 {
 	uint32_t cpu;
 
 	rockchip_pd_lock_init();
-	plat_setup_rockchip_pm_ops(&pm_ops);
 
 	/* register requires 32bits mode, switch it to 32 bits */
 	cpu_warm_boot_addr = (uint64_t)platform_cpu_warmboot;
