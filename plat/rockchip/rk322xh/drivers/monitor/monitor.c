@@ -33,17 +33,16 @@
 #include <platform.h>
 #include <rk322xh_def.h>
 #include <rockchip_exceptions.h>
+#include <plat_private.h>
 #include <soc.h>
 
 /* #define MONITOR_DBG */
-
 #ifdef MONITOR_DBG
 #define DBG_INFO(...)		tf_printf("MONITOR: "__VA_ARGS__)
 #else
 #define DBG_INFO(...)
 #endif
 
-#define ARCH_TIMER_TICKS_PER_SEC 24000000
 /************************** config param **************************************/
 #define MONITOR_POLL_SEC	10
 #define MAX_WAIT_SEC		(20 * 60)	/* 20 minutes */
@@ -96,8 +95,9 @@ static inline void unknown_panic(void)
 {
 	/* DPLL 24mhz */
 	DBG_INFO("%s: soc=0x%x, sw=0x%x, os=0x%x\n", __func__,
-		rockchip_soc_id, rockchip_sw_id, grf_read32(GRF_OS_REG4));
-	cru_write32(PLL_SLOW_MODE(DPLL_ID), CRU_CRU_MODE);
+		 rockchip_soc_id, rockchip_sw_id,
+		 mmio_read_32(GRF_BASE + GRF_OS_REG4));
+	mmio_write_32(CRU_BASE + CRU_CRU_MODE, PLL_SLOW_MODE(DPLL_ID));
 }
 
 static inline int random_panic(void)
@@ -107,12 +107,13 @@ static inline int random_panic(void)
 	static uint32_t count;
 
 	DBG_INFO("%s: soc=0x%x, sw=0x%x, os=0x%x\n", __func__,
-		rockchip_soc_id, rockchip_sw_id, grf_read32(GRF_OS_REG4));
+		 rockchip_soc_id, rockchip_sw_id,
+		 mmio_read_32(GRF_BASE + GRF_OS_REG4));
 	cntpct = arch_counter_get_cntpct();
 	offset = random_table[cntpct & 0x1f];
-	dpll_con0 = cru_read32(PLL_CONS(DPLL_ID, 0));	/*DPLL*/
+	dpll_con0 = mmio_read_32(CRU_BASE + PLL_CONS(DPLL_ID, 0));	/*DPLL*/
 	dpll_con0 = 0x0fff0000 | (dpll_con0 + offset);	/*fbdiv: [11:0]*/
-	cru_write32(dpll_con0, PLL_CONS(DPLL_ID, 0));
+	mmio_write_32(CRU_BASE + PLL_CONS(DPLL_ID, 0), dpll_con0);
 	count++;
 
 	return count;
@@ -123,10 +124,10 @@ static int rk_get_sw_id(void)
 	uint32_t os_reg, gate17, sw_id;
 
 	/* enable pclk_grf, gate17[0] */
-	gate17 = cru_read32(CRU_CLKGATE_CON(17));
-	cru_write32(((0 << 0) | (1 << 16)), CRU_CLKGATE_CON(17));
+	gate17 = mmio_read_32(CRU_BASE + CRU_CLKGATE_CON(17));
+	mmio_write_32(CRU_BASE + CRU_CLKGATE_CON(17), (0 << 0) | (1 << 16));
 
-	os_reg = grf_read32(GRF_OS_REG4);
+	os_reg = mmio_read_32(GRF_BASE + GRF_OS_REG4);
 	if ((os_reg & RK322XH_SW_ID_MSK) == RK322XH_SW_ID)
 		sw_id = SOC_RK322XH;
 	else if ((os_reg & RK322XH_SW_ID_MSK) == RK3328_SW_ID)
@@ -136,7 +137,7 @@ static int rk_get_sw_id(void)
 	else
 		sw_id = SOC_UNKNOWN;
 
-	cru_write32(gate17 | 0xffff0000, CRU_CLKGATE_CON(17));
+	mmio_write_32(CRU_BASE + CRU_CLKGATE_CON(17), gate17 | 0xffff0000);
 
 	return sw_id;
 }
@@ -201,7 +202,7 @@ static uint64_t soc_monitor_isr(uint32_t id,
 
 	/* smp brought up yet and timeout to write sw series, panic */
 	if (cpu_online_mask <= 0x1)
-		cpu_online_mask = ~pmu_read32(PMU_PWRDN_ST) & 0x0f;
+		cpu_online_mask = mmio_read_32(PMU_BASE + PMU_PWRDN_ST) & 0x0f;
 	if ((rockchip_sw_id == SOC_ROOT) && (cpu_online_mask >= 0x03) &&
 	    (++wait_cnt > (MAX_WAIT_SEC / MONITOR_POLL_SEC))) {
 		DBG_INFO("sw wait timeout\n");
@@ -225,7 +226,7 @@ static uint64_t soc_monitor_isr(uint32_t id,
 	}
 
 	/* reload timer cntptval*/
-	cntptval = MONITOR_POLL_SEC * ARCH_TIMER_TICKS_PER_SEC;
+	cntptval = MONITOR_POLL_SEC * SYS_COUNTER_FREQ_IN_TICKS;
 	arch_timer_set_cntptval(cntptval);
 
 	DBG_INFO("soc=0x%x, sw=0x%x, timeout=%ds, panic=%ds, cpu=0x%x\n",
@@ -243,12 +244,12 @@ static void soc_monitor_init(uint32_t monitor_sec)
 
 	/* enable timer & interrupt */
 	cntpctl = (1 << 0) | (0 << 1);
-	cntptval = monitor_sec * ARCH_TIMER_TICKS_PER_SEC;
+	cntptval = monitor_sec * SYS_COUNTER_FREQ_IN_TICKS;
 	arch_timer_set_cntptval(cntptval);
 	arch_timer_set_cntpctl(cntpctl);
 }
 
-int rk_soc_monitor_init(void)
+int prt_rk_soc_monitor_init(void)
 {
 	int ret;
 	uint32_t efuse32_buf[8] = {0};

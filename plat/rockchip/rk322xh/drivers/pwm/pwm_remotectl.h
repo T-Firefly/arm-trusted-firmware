@@ -63,10 +63,8 @@ typedef enum RMC_STATE {
 	RMC_PWRKEY,
 } RMC_STATE_t;
 
-__sramfunc void remotectl_finish(void);
-__sramfunc void remotectl_prepare(void);
-__sramfunc int remotectl_is_pwm_wakeup(void);
-__sramfunc int remotectl_pwm_pwrkey_wakeup(void);
-int remotectl_sip_handler(uint32_t param, uint32_t data);
+__sramfunc int pwm_remotectl_wakeup(void);
+__sramfunc void pwm_remotectl_prepare(void);
+int pwm_remotectl_sip_handler(uint32_t param, uint32_t data);
 
 #endif

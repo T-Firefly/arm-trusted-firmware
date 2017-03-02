@@ -35,7 +35,7 @@
 #include <rk322xh_def.h>
 #include <soc.h>
 #include <string.h>
-#include "parameter.h"
+#include "ddr_parameter.h"
 
 #define PARAM_DEBUG	0
 
@@ -80,7 +80,7 @@ struct param_ddr_usage ddr_region_usage_parse(uint64_t addr, uint64_t max_mb)
 	p.ns_nr = mmio_read_32(addr + REGION_NR_OFFSET);
 	if ((p.ns_nr > DDR_REGION_NR_MAX) || (p.ns_nr == 0)) {
 		ERROR("over or zero region, nr=%d, max=%d\n",
-		       p.ns_nr, DDR_REGION_NR_MAX);
+		      p.ns_nr, DDR_REGION_NR_MAX);
 		return p;
 	}
 
@@ -96,8 +96,8 @@ struct param_ddr_usage ddr_region_usage_parse(uint64_t addr, uint64_t max_mb)
 		base = mmio_read_64(addr + addr_offset);
 		top = base + mmio_read_64(addr + size_offset);
 		/*
-		 * translate byte to MB and store info.
-                 * Miniloader will promise every ns-region is MB aligned
+		 * translate byte to MB and store info,
+		 * Miniloader will promise every ns-region is MB aligned.
 		 */
 		p.ns_base[i] = RG_SIZE_MB(base);
 		p.ns_top[i] = RG_SIZE_MB(top);

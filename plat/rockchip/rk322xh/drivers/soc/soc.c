@@ -31,7 +31,7 @@
 #include <mmio.h>
 #include <platform_def.h>
 #include <plat_private.h>
-#include <parameter.h>
+#include <ddr_parameter.h>
 #include <rk322xh_def.h>
 #include <soc.h>
 
@@ -94,11 +94,10 @@ const unsigned char rockchip_power_domain_tree_desc[] = {
 
 void secure_timer_init(void)
 {
-	stimer_write32(CHN(1), 0xffffffff, TIMER_LOADE_COUNT0);
-	stimer_write32(CHN(1), 0xffffffff, TIMER_LOADE_COUNT1);
-
+	mmio_write_32(STIMER_CHN_BASE(1) + TIMER_LOADE_COUNT0, 0xffffffff);
+	mmio_write_32(STIMER_CHN_BASE(1) + TIMER_LOADE_COUNT1, 0xffffffff);
 	/* auto reload & enable the timer */
-	stimer_write32(CHN(1), TIMER_EN, TIMER_CONTROL_REG);
+	mmio_write_32(STIMER_CHN_BASE(1) + TIMER_CONTROL_REG, TIMER_EN);
 }
 
 void sgrf_init(void)
@@ -107,42 +106,49 @@ void sgrf_init(void)
 	struct param_ddr_usage usg;
 
 	/* general secure regions */
-	usg = ddr_region_usage_parse(DDR_PARAM_BASE, PLAT_MAX_DDR_CAPACITY_MB);
+	usg = ddr_region_usage_parse(DDR_PARAM_BASE,
+				     PLAT_MAX_DDR_CAPACITY_MB);
 	for (i = 0; i < usg.s_nr; i++) {
 		/* enable secure */
-		val = firewall_ddr_read32(FIREWALL_DDR_FW_DDR_CON_REG);
+		val = mmio_read_32(FIREWALL_DDR_BASE +
+			      FIREWALL_DDR_FW_DDR_CON_REG);
 		val |= BIT(7 - i);
-		firewall_ddr_write32(val, FIREWALL_DDR_FW_DDR_CON_REG);
+		mmio_write_32(FIREWALL_DDR_BASE +
+			      FIREWALL_DDR_FW_DDR_CON_REG, val);
 		/* map top and base */
-		firewall_ddr_write32(RG_MAP_SECURE(usg.s_top[i], usg.s_base[i]),
-				     FIREWALL_DDR_FW_DDR_RGN(7 - i));
+		mmio_write_32(FIREWALL_DDR_BASE +
+			      FIREWALL_DDR_FW_DDR_RGN(7 - i),
+			      RG_MAP_SECURE(usg.s_top[i], usg.s_base[i]));
 	}
 
 	/* set ddr rgn0_top and rga0_top as 0 */
-	firewall_ddr_write32(0x0, FIREWALL_DDR_FW_DDR_RGN(0));
+	mmio_write_32(FIREWALL_DDR_BASE + FIREWALL_DDR_FW_DDR_RGN(0), 0x0);
 
 	/* set all slave ip into no-secure, except stimer */
-	firewall_cfg_write32(SGRF_SLV_S_ALL_NS, FIREWALL_CFG_FW_SYS_CON(0));
-	firewall_cfg_write32(SGRF_SLV_S_ALL_NS, FIREWALL_CFG_FW_SYS_CON(1));
-	firewall_cfg_write32(SGRF_SLV_S_ALL_NS | STIMER_S,
-			     FIREWALL_CFG_FW_SYS_CON(2));
-	firewall_cfg_write32(SGRF_SLV_S_ALL_NS, FIREWALL_CFG_FW_SYS_CON(3));
+	mmio_write_32(FIREWALL_CFG_BASE + FIREWALL_CFG_FW_SYS_CON(0),
+		      SGRF_SLV_S_ALL_NS);
+	mmio_write_32(FIREWALL_CFG_BASE + FIREWALL_CFG_FW_SYS_CON(1),
+		      SGRF_SLV_S_ALL_NS);
+	mmio_write_32(FIREWALL_CFG_BASE + FIREWALL_CFG_FW_SYS_CON(2),
+		      SGRF_SLV_S_ALL_NS | STIMER_S);
+	mmio_write_32(FIREWALL_CFG_BASE + FIREWALL_CFG_FW_SYS_CON(3),
+		      SGRF_SLV_S_ALL_NS);
 
 	/* set all master ip into no-secure */
-	sgrf_write32(0xf0000000, SGRF_SOC_CON(2));
-	sgrf_write32(SGRF_MST_S_ALL_NS, SGRF_SOC_CON(3));
-	sgrf_write32(SGRF_MST_S_ALL_NS, SGRF_SOC_CON(4));
+	mmio_write_32(SGRF_BASE + SGRF_SOC_CON(2), 0xf0000000);
+	mmio_write_32(SGRF_BASE + SGRF_SOC_CON(3), SGRF_MST_S_ALL_NS);
+	mmio_write_32(SGRF_BASE + SGRF_SOC_CON(4), SGRF_MST_S_ALL_NS);
 
 	/* set DMAC into no-secure */
-	sgrf_write32(DMA_IRQ_BOOT_NS, SGRF_DMAC_CON(3));
-	sgrf_write32(DMA_PERI_CH_NS_15_0, SGRF_DMAC_CON(4));
-	sgrf_write32(DMA_PERI_CH_NS_19_16, SGRF_DMAC_CON(5));
-	sgrf_write32(DMA_MANAGER_BOOT_NS, SGRF_DMAC_CON(5));
+	mmio_write_32(SGRF_BASE + SGRF_DMAC_CON(3), DMA_IRQ_BOOT_NS);
+	mmio_write_32(SGRF_BASE + SGRF_DMAC_CON(4), DMA_PERI_CH_NS_15_0);
+	mmio_write_32(SGRF_BASE + SGRF_DMAC_CON(5), DMA_PERI_CH_NS_19_16);
+	mmio_write_32(SGRF_BASE + SGRF_DMAC_CON(5), DMA_MANAGER_BOOT_NS);
 
 	/* soft reset dma before use */
-	cru_write32(DMA_SOFTRST_REQ, CRU_SOFTRSTS_CON(3));
+	mmio_write_32(CRU_BASE + CRU_SOFTRSTS_CON(3), DMA_SOFTRST_REQ);
 	udelay(5);
-	cru_write32(DMA_SOFTRST_RLS, CRU_SOFTRSTS_CON(3));
+	mmio_write_32(CRU_BASE + CRU_SOFTRSTS_CON(3), DMA_SOFTRST_RLS);
 }
 
 void plat_rockchip_soc_init(void)
@@ -150,5 +156,6 @@ void plat_rockchip_soc_init(void)
 	secure_timer_init();
 	sgrf_init();
 
-	NOTICE("BL31: Release version: v%d.%d\n", MAJOR_VERSION, MINOR_VERSION);
+	NOTICE("BL31:Rockchip release version: v%d.%d\n",
+	       MAJOR_VERSION, MINOR_VERSION);
 }

@@ -36,20 +36,18 @@ PLAT_INCLUDES		:=	-Idrivers/arm/gic/common/			\
 				-I${RK_PLAT_COMMON}/                            \
 				-I${RK_PLAT_COMMON}/include/                    \
 				-I${RK_PLAT_COMMON}/pmusram                     \
-				-I${RK_PLAT_COMMON}/drivers/pmu/                     \
+				-I${RK_PLAT_COMMON}/drivers/pmu/                \
 				-I${RK_PLAT_COMMON}/drivers/parameter/		\
-				-I${RK_PLAT_COMMON}/drivers/sram/		\
-				-I${RK_PLAT_COMMON}/drivers/efuse/		\
+				-I${RK_PLAT_COMMON}/drivers/sram/               \
 				-I${RK_PLAT_SOC}/				\
 				-I${RK_PLAT_SOC}/drivers/pmu/			\
 				-I${RK_PLAT_SOC}/drivers/soc/			\
 				-I${RK_PLAT_SOC}/drivers/pwm/			\
-				-I${RK_PLAT_SOC}/drivers/monitor/		\
 				-Idrivers/arm/gic/common/			\
 				-Iinclude/plat/common/				\
-				-I${RK_PLAT_SOC}/include/			\
+				-I${RK_PLAT_SOC}/include/
 
-RK_GIC_SOURCES	:=	drivers/arm/gic/common/gic_common.c		\
+RK_GIC_SOURCES		:=	drivers/arm/gic/common/gic_common.c		\
 				drivers/arm/gic/v2/gicv2_main.c			\
 				drivers/arm/gic/v2/gicv2_helpers.c		\
 				plat/common/plat_gicv2.c			\
@@ -59,7 +57,7 @@ PLAT_BL_COMMON_SOURCES	:=	lib/aarch64/xlat_tables.c			\
 				plat/common/aarch64/plat_common.c		\
 				plat/common/aarch64/plat_psci_common.c
 
-BL31_SOURCES	+=	${RK_GIC_SOURCES}				\
+BL31_SOURCES		+=	${RK_GIC_SOURCES}				\
 				drivers/arm/cci/cci.c				\
 				drivers/console/console.S			\
 				drivers/ti/uart/16550_console.S			\
@@ -69,7 +67,7 @@ BL31_SOURCES	+=	${RK_GIC_SOURCES}				\
 				lib/cpus/aarch64/cortex_a53.S			\
 				plat/common/aarch64/platform_mp_stack.S		\
 				plat/rockchip/common/rockchip_exceptions.c	\
-				${RK_PLAT_COMMON}/drivers/parameter/parameter.c	\
+				${RK_PLAT_COMMON}/drivers/parameter/ddr_parameter.c	\
 				${RK_PLAT_COMMON}/aarch64/plat_helpers.S	\
 				${RK_PLAT_COMMON}/bl31_plat_setup.c		\
 				${RK_PLAT_COMMON}/pmusram/pmu_sram.c            \
@@ -79,12 +77,21 @@ BL31_SOURCES	+=	${RK_GIC_SOURCES}				\
 				${RK_PLAT_COMMON}/aarch64/platform_common.c	\
 				${RK_PLAT_COMMON}/rockchip_sip_svc.c		\
 				${RK_PLAT_COMMON}/drivers/sram/sram.c		\
-				${RK_PLAT_COMMON}/drivers/efuse/efuse.c		\
 				${RK_PLAT_SOC}/plat_sip_calls.c			\
 				${RK_PLAT_SOC}/drivers/pmu/pmu.c		\
-				${RK_PLAT_SOC}/drivers/soc/soc.c		\
-				${RK_PLAT_SOC}/drivers/pwm/remotectl_pwm.c	\
-				${RK_PLAT_SOC}/drivers/monitor/monitor.c	\
+				${RK_PLAT_SOC}/drivers/soc/soc.c
+
+ROCKCHIP_PRT_INCLUDES	:=	-I${RK_PLAT_COMMON}/drivers/efuse/		\
+				-I${RK_PLAT_SOC}/drivers/pwm/			\
+				-I${RK_PLAT_SOC}/drivers/monitor/
+
+PLAT_INCLUDES		+=	${ROCKCHIP_PRT_INCLUDES}
+
+ROCKCHIP_PRT		:=	${RK_PLAT_COMMON}/drivers/efuse/efuse.c		\
+                    		${RK_PLAT_SOC}/drivers/pwm/pwm_remotectl.c	\
+				${RK_PLAT_SOC}/drivers/monitor/monitor.c
+
+BL31_SOURCES    += ${ROCKCHIP_PRT}
 
 ENABLE_PLAT_COMPAT 	:=      0
 

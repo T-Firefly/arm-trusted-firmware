@@ -15,7 +15,7 @@
 #include <arch_helpers.h>
 #include <console.h>
 #include <debug.h>
-#include <remotectl_pwm.h>
+#include <pwm_remotectl.h>
 #include <rk322xh_def.h>
 #include <smcc_helpers.h>
 #include <soc.h>
@@ -47,16 +47,18 @@ struct rkxx_remotectl_drvdata {
 	unsigned long early_hpr_us;
 };
 
-__sramdata static struct rkxx_remotectl_drvdata g_ddata;
+static __sramdata struct rkxx_remotectl_drvdata g_ddata;
 
 static inline int is_pwm_pulse_bit1_valid(unsigned long hpr_us)
 {
-	return ((PWM_PULSE_BIT1_MIN < hpr_us) && (hpr_us < PWM_PULSE_BIT1_MAX));
+	return ((hpr_us >= PWM_PULSE_BIT1_MIN) &&
+		(hpr_us < PWM_PULSE_BIT1_MAX));
 }
 
 static inline int is_pwm_pulse_pre_valid(unsigned long hpr_us)
 {
-	return ((PWM_PULSE_PRE_MIN < hpr_us) && (hpr_us < PWM_PULSE_PRE_MAX));
+	return ((hpr_us >= PWM_PULSE_PRE_MIN) &&
+		(hpr_us < PWM_PULSE_PRE_MAX));
 }
 
 static inline int is_user_code_valid(struct rkxx_remotectl_drvdata *ddata)
@@ -107,7 +109,7 @@ static inline uint64_t sram_get_us(uint64_t cntpct)
 	return (arch_counter_get_cntpct() - cntpct) / SYSTEM_CNTPCT_PER_US;
 }
 
-__sramfunc static int pwm_parse_keydata(unsigned long hpr_us)
+static __sramfunc int pwm_parse_keydata(unsigned long hpr_us)
 {
 	struct rkxx_remotectl_drvdata *ddata = &g_ddata;
 	static __sramdata int scan_data, scan_nums;
@@ -132,7 +134,6 @@ __sramfunc static int pwm_parse_keydata(unsigned long hpr_us)
 		scan_nums++;
 		/* user code(16 bits) receive full */
 		if (scan_nums >= USER_KEY_CODE_BIT_NUMS) {
-
 			ddata->scan_data = scan_data << 16;
 			if (is_user_code_valid(ddata))
 				ddata->state = RMC_GETDATA;
@@ -157,10 +158,12 @@ __sramfunc static int pwm_parse_keydata(unsigned long hpr_us)
 		ddata->scan_data |= scan_data;
 		if (is_keycode_verify_pass(ddata)) {
 			if (is_key_code_valid(ddata)) {
-				/* sram_putc('W');
+				#if 0
+				sram_putc('W');
 				sram_putc('(');
 				sram_printhex(ddata->scan_data);
-				sram_putc(')'); */
+				sram_putc(')');
+				#endif
 				ddata->wakeup_state = REMOTECTL_PWRKEY_WAKEUP;
 				return RMC_PWRKEY;
 			}
@@ -178,24 +181,24 @@ __sramfunc static int pwm_parse_keydata(unsigned long hpr_us)
 }
 
 /******************************************************************************
-
-				|<------ pulse 1 -------->|
-				---------------------     -----------
-normal pulse 1:			|	   	    |     |
-			________|   	  s1'	    |_s4'_|
-
-			level:	|<----- high ------>|<low>|
-
-<ECC bit1 pulse>
-	high level s1' = s1 + s2 + s3 = 1690us (but s2 is lowlevel glitch)
-	low_level  s4' = s4 = 560us
-	early_hpr_us = s1 + s2;
-				-----------    ------     -----------
-				|	  |    |    |     |
-glitch lpr pluse 1:	________|   s1    |_s2_| s3 |_s4__|
-
+ *
+ *				|<------ pulse 1 -------->|
+ *				---------------------     -----------
+ * normal pulse 1:		|                   |     |
+ *			________|         s1'       |_s4'_|
+ *
+ *			level:	|<----- high ------>|<low>|
+ *
+ * <ECC bit1 pulse>
+ *	high level s1' = s1 + s2 + s3 = 1690us (but s2 is lowlevel glitch)
+ *	low_level  s4' = s4 = 560us
+ *	early_hpr_us = s1 + s2;
+ *				-----------    ------     -----------
+ *				|	  |    |    |     |
+ * glitch lpr pluse 1:	________|   s1    |_s2_| s3 |_s4__|
+ *
 *******************************************************************************/
-__sramfunc int remotectl_pwm_pwrkey_wakeup(void)
+__sramfunc int pwm_remotectl_pwrkey_wakeup(void)
 {
 	struct rkxx_remotectl_drvdata *ddata = &g_ddata;
 	unsigned int lpr_us, hpr_us;
@@ -217,14 +220,14 @@ __sramfunc int remotectl_pwm_pwrkey_wakeup(void)
 		}
 
 		/* is interrupt ? */
-		val = pwm_read32(PWM_INTSTS);
+		val = mmio_read_32(PWM_BASE + PWM_INTSTS);
 		if ((val & PWM_CH_INT(id)) == 0)
 			continue;
 
 		/* is high and low level collect done yet ? */
 		if ((val & PWM_CH_POL(id)) == 0) {
-			hpr_cnt = pwm_read32(PWM_REG_HPR(id));
-			lpr_cnt = pwm_read32(PWM_REG_LPR(id));
+			hpr_cnt = mmio_read_32(PWM_BASE + PWM_REG_HPR(id));
+			lpr_cnt = mmio_read_32(PWM_BASE + PWM_REG_LPR(id));
 			lpr_us = lpr_cnt / ddata->pwm_cycles_per_us;
 
 			if (lpr_us > PWM_PULSE_BIT0_MIN) {
@@ -237,9 +240,9 @@ __sramfunc int remotectl_pwm_pwrkey_wakeup(void)
 				if (key_state == RMC_PWRKEY ||
 				    key_state == RMC_PRELOAD) {
 					if (key_state == RMC_PRELOAD) {
-						val = pwm_read32(PWM_INTSTS);
+						val = mmio_read_32(PWM_BASE + PWM_INTSTS);
 						val |= PWM_CH_INT(id);
-						pwm_write32(val, PWM_INTSTS);
+						mmio_write_32(PWM_BASE + PWM_INTSTS, val);
 					}
 					/* if powerkey wakeup, don't clear int
 					 * flag to allow kernel knowns the
@@ -257,9 +260,9 @@ __sramfunc int remotectl_pwm_pwrkey_wakeup(void)
 		}
 
 		/* clear int flag */
-		val = pwm_read32(PWM_INTSTS);
+		val = mmio_read_32(PWM_BASE + PWM_INTSTS);
 		val |= PWM_CH_INT(id);
-		pwm_write32(val, PWM_INTSTS);
+		mmio_write_32(PWM_BASE + PWM_INTSTS, val);
 
 		/* reinit timerout value */
 		cntpct = arch_counter_get_cntpct();
@@ -268,7 +271,7 @@ __sramfunc int remotectl_pwm_pwrkey_wakeup(void)
 	return !!(key_state == RMC_PWRKEY);
 }
 
-__sramfunc void remotectl_prepare(void)
+__sramfunc void pwm_remotectl_prepare(void)
 {
 	uint32_t val;
 	struct rkxx_remotectl_drvdata *ddata = &g_ddata;
@@ -276,22 +279,22 @@ __sramfunc void remotectl_prepare(void)
 	if (!ddata->enable)
 		return;
 
-	ddata->ctrl_reg = pwm_read32(PWM_REG_CTRL(ddata->pwm_id));
+	ddata->ctrl_reg = mmio_read_32(PWM_BASE + PWM_REG_CTRL(ddata->pwm_id));
 
 	/* prescale clock is directly used as the PWM clock source, NO div */
-	val = pwm_read32(PWM_REG_CTRL(ddata->pwm_id));
+	val = mmio_read_32(PWM_BASE + PWM_REG_CTRL(ddata->pwm_id));
 	val = (val & PWM_CLK_FREQ_MSK) | PWM_CLK_SCALE_1MHZ;
-	pwm_write32(val, PWM_REG_CTRL(ddata->pwm_id));
+	mmio_write_32(PWM_BASE + PWM_REG_CTRL(ddata->pwm_id), val);
 }
 
-__sramfunc void remotectl_finish(void)
+__sramfunc void pwm_remotectl_finish(void)
 {
 	struct rkxx_remotectl_drvdata *ddata = &g_ddata;
 
 	if (!ddata->enable)
 		return;
 
-	pwm_write32(ddata->ctrl_reg, PWM_REG_CTRL(ddata->pwm_id));
+	mmio_write_32(PWM_BASE + PWM_REG_CTRL(ddata->pwm_id), ddata->ctrl_reg);
 }
 
 #define GIC_BASE	(0xff810000 + 0x1000)
@@ -310,7 +313,7 @@ __sramfunc int sram_gic_it_is_pending(size_t it)
 	return !!(reg & bit_msk);
 }
 
-__sramfunc int remotectl_is_pwm_wakeup(void)
+__sramfunc int pwm_remotectl_is_wakeup(void)
 {
 	struct rkxx_remotectl_drvdata *ddata = &g_ddata;
 
@@ -320,7 +323,20 @@ __sramfunc int remotectl_is_pwm_wakeup(void)
 	return sram_gic_it_is_pending(ddata->irq);
 }
 
-int remotectl_sip_handler(uint32_t param, uint32_t data)
+__sramfunc int pwm_remotectl_wakeup(void)
+{
+	int wakeup;
+
+	if (pwm_remotectl_is_wakeup()) {
+		wakeup = pwm_remotectl_pwrkey_wakeup();
+		if (!wakeup)
+			return -1;
+	}
+	pwm_remotectl_finish();
+	return 0;
+}
+
+int pwm_remotectl_sip_handler(uint32_t param, uint32_t data)
 {
 	struct rkxx_remotectl_drvdata *ddata = &g_ddata;
 	static uint32_t num;
@@ -342,12 +358,9 @@ int remotectl_sip_handler(uint32_t param, uint32_t data)
 		break;
 	case REMOTECTL_GET_WAKEUP_STATE:
 		return ddata->wakeup_state;
-		break;
-
 	case REMOTECTL_ENABLE:
 		ddata->enable = data;
 		break;
-
 	default:
 		return SMC_UNK;
 	}

@@ -26,6 +26,6 @@
  */
 #ifndef __MONITOR_H__
 
-int rk_soc_monitor_init(void);
+int prt_rk_soc_monitor_init(void);
 
 #endif
