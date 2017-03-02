@@ -319,7 +319,7 @@ static void uartdbg_to_oshdl_handler(uint64_t handler, void *handle_ctx)
 	  */
 	write_ctx_reg(gp_state, CTX_GPREG_X0, uartdbg_el_data.sp_el1);
 	write_ctx_reg(gp_state, CTX_GPREG_X1,
-		      line_id * cpudata_size + sizeof(struct share_mem_manage));
+		      line_id * cpudata_size);
 }
 
 static uint64_t uartdbg_oshdl_to_os_smc_handler(void *handle)
