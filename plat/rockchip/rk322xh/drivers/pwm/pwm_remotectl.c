@@ -16,7 +16,7 @@
 #include <console.h>
 #include <debug.h>
 #include <pwm_remotectl.h>
-#include <rk322xh_def.h>
+#include <rk3328_def.h>
 #include <smcc_helpers.h>
 #include <soc.h>
 

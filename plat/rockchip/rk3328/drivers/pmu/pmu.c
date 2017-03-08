@@ -38,27 +38,13 @@
 #include <plat_private.h>
 #include <pmu_sram.h>
 #include <pmu.h>
-#include <rk322xh_def.h>
+#include <rk3328_def.h>
 #include <pmu_com.h>
-#include <pwm_remotectl.h>
-#include <monitor.h>
-#include <sram.h>
-#include "pmu_prt_dbg.c"
 
 DEFINE_BAKERY_LOCK(rockchip_pd_lock);
 
-#define CPU_PD_CTR_FLG_HW 1
-
 static struct psram_data_t *psram_sleep_cfg =
 		(struct psram_data_t *)PSRAM_DT_BASE;
-
-#if !CPU_PD_CTR_FLG_HW
-static uint32_t cores_pd_cfg_info[PLATFORM_CORE_COUNT]
-#if USE_COHERENT_MEM
-__attribute__ ((section("tzfw_coherent_mem")))
-#endif
-;/* coheront */
-#endif
 
 static struct rk3328_sleep_ddr_data ddr_data;
 static __sramdata struct rk3328_sleep_sram_data sram_data;
@@ -84,7 +70,6 @@ void plat_rockchip_pmusram_prepare(void)
 	psram_sleep_cfg->sp = PSRAM_DT_BASE;
 }
 
-#if CPU_PD_CTR_FLG_HW
 static inline uint32_t get_cpus_pwr_domain_cfg_info(uint32_t cpu_id)
 {
 	uint32_t pd_reg, apm_reg;
@@ -102,27 +87,6 @@ static inline uint32_t get_cpus_pwr_domain_cfg_info(uint32_t cpu_id)
 	while (1)
 	;
 }
-
-static inline void set_cpus_pwr_domain_cfg_info(uint32_t cpu_id, uint32_t value)
-{
-}
-#else
-
-static inline uint32_t get_cpus_pwr_domain_cfg_info(uint32_t cpu_id)
-{
-	return cores_pd_cfg_info[cpu_id];
-}
-
-static inline void set_cpus_pwr_domain_cfg_info(uint32_t cpu_id, uint32_t value)
-{
-	cores_pd_cfg_info[cpu_id] = value;
-
-#if !USE_COHERENT_MEM
-	flush_dcache_range((uintptr_t)&cores_pd_cfg_info[cpu_id],
-			   sizeof(uint32_t));
-#endif
-}
-#endif
 
 static int cpus_power_domain_on(uint32_t cpu_id)
 {
@@ -176,10 +140,8 @@ static int cpus_power_domain_off(uint32_t cpu_id, uint32_t pd_cfg)
 		/* disable apm cfg */
 		mmio_write_32(PMU_BASE + PMU_CPUAPM_CON(cpu_id),
 			      CORES_PM_DISABLE);
-		set_cpus_pwr_domain_cfg_info(cpu_id, pd_cfg);
 		pmu_power_domain_ctr(cpu_pd, pmu_pd_off);
 	} else {
-		set_cpus_pwr_domain_cfg_info(cpu_id, pd_cfg);
 		apm_value = BIT(core_pm_en) | BIT(core_pm_dis_int);
 		if (pd_cfg == core_pwr_wfi_int)
 			apm_value |= BIT(core_pm_int_wakeup_en);
@@ -320,7 +282,6 @@ static void clks_gating_suspend(uint32_t *ungt_msk)
 	for (i = 0; i < CRU_CLKGATE_NUMS; i++) {
 		ddr_data.clk_ungt_save[i] =
 			mmio_read_32(CRU_BASE + CRU_CLKGATE_CON(i));
-		//dbg_clks_gating_suspend(ungt_msk);
 		mmio_write_32(CRU_BASE + CRU_CLKGATE_CON(i),
 			      ((~ungt_msk[i]) << 16) | 0xffff);
 	}
@@ -442,7 +403,6 @@ static void pm_plls_suspend(void)
 	ddr_data.clk_sel20 = mmio_read_32(CRU_BASE + CRU_CLKSEL_CON(20));
 	ddr_data.clk_sel24 = mmio_read_32(CRU_BASE + CRU_CLKSEL_CON(24));
 	ddr_data.clk_sel38 = mmio_read_32(CRU_BASE + CRU_CLKSEL_CON(38));
-	dbg_pm_plls_suspend();
 	pll_suspend(NPLL_ID);
 	pll_suspend(CPLL_ID);
 	pll_suspend(GPLL_ID);
@@ -511,7 +471,22 @@ static void pm_plls_resume(void)
 	pll_resume(GPLL_ID);
 	pll_resume(CPLL_ID);
 	pll_resume(NPLL_ID);
-	dbg_pm_plls_resume();
+}
+
+#define ARCH_TIMER_TICKS_PER_US (SYS_COUNTER_FREQ_IN_TICKS / 1000000)
+
+static __sramfunc void sram_udelay(uint32_t us)
+{
+	uint64_t pct_orig, pct_now;
+	uint64_t to_wait = ARCH_TIMER_TICKS_PER_US * us;
+
+	isb();
+	pct_orig = read_cntpct_el0();
+
+	do {
+		isb();
+		pct_now = read_cntpct_el0();
+	} while ((pct_now - pct_orig) <= to_wait);
 }
 
 /*
@@ -657,17 +632,10 @@ __sramfunc void sram_suspend(void)
 		      (PMUSRAM_BASE >> CPU_BOOT_ADDR_ALIGN) |
 		      CPU_BOOT_ADDR_WMASK);
 
-	putchar('3');
-
 	/* ddr self-refresh and gating phy */
 	ddr_suspend();
-	sram_putchar('4');
 
 	rk3328_pmic_suspend();
-
-	sram_putchar('5');
-
-	pwm_remotectl_prepare();
 
 	sram_dbg_uart_suspend();
 
@@ -678,18 +646,11 @@ static __sramfunc void sys_resume_first(void)
 {
 	sram_dbg_uart_resume();
 
-	sram_putchar('t');
-
-	if (pwm_remotectl_wakeup())
-		sram_soc_enter_lp();
-	sram_putchar('m');
-
 	rk3328_pmic_resume();
-	sram_putchar('4');
 
 	/* ddr self-refresh exit */
 	ddr_resume();
-	putchar('3');
+
 	/* disable apm cfg */
 	mmio_write_32(PMU_BASE + PMU_CPUAPM_CON(0), CORES_PM_DISABLE);
 
@@ -711,34 +672,20 @@ void __dead2 rockchip_soc_sys_pd_pwr_dn_wfi(void)
 
 int rockchip_soc_sys_pwr_dm_suspend(void)
 {
-	putchar('\n');
-	dbg_rk322x_irq_prepare();
-
-	putchar('0');
-
 	clks_gating_suspend(clk_ungt_msk);
-	putchar('1');
 
 	pm_plls_suspend();
-	putchar('2');
 
 	return 0;
 }
 
 int rockchip_soc_sys_pwr_dm_resume(void)
 {
-	putchar('2');
-
 	pm_plls_resume();
-	putchar('1');
 
 	clks_gating_resume();
-	putchar('0');
 
 	plat_rockchip_gic_cpuif_enable();
-
-	dbg_rk322x_irq_finish();
-	putchar('\n');
 
 	return 0;
 }
@@ -762,9 +709,6 @@ void plat_rockchip_pmu_init(void)
 		      CPU_BOOT_ADDR_WMASK);
 
 	nonboot_cpus_off();
-
-	rk_register_handler();
-	prt_rk_soc_monitor_init();
 
 	INFO("%s: pd status 0x%x\n",
 	     __func__, mmio_read_32(PMU_BASE + PMU_PWRDN_ST));

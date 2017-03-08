@@ -28,6 +28,30 @@
 #ifndef __PMU_H__
 #define __PMU_H__
 
+#include <soc.h>
+
+struct rk3328_sleep_ddr_data {
+	uint32_t pmu_debug_enable;
+	uint32_t debug_iomux_save;
+	uint32_t pmic_sleep_save;
+	uint32_t pmu_wakeup_conf0;
+	uint32_t pmu_pwrmd_com;
+	uint32_t cru_mode_save;
+	uint32_t clk_sel0, clk_sel1, clk_sel18,
+		 clk_sel20, clk_sel24, clk_sel38;
+	uint32_t clk_ungt_save[CRU_CLKGATE_NUMS];
+	uint32_t cru_plls_con_save[MAX_PLL][CRU_PLL_CON_NUMS];
+};
+
+struct rk3328_sleep_sram_data {
+	uint32_t pmic_sleep_save;
+	uint32_t pmic_sleep_gpio_save[2];
+	uint32_t ddr_grf_con0;
+	uint32_t dpll_con_save[CRU_PLL_CON_NUMS];
+	uint32_t pd_sr_idle_save;
+	uint32_t uart2_ier;
+};
+
 /*****************************************************************************
  * The ways of cores power domain contorlling
  *****************************************************************************/
@@ -100,7 +124,6 @@ enum pmu_sft_con {
 	ddr_io_ret_cfg,
 	pmu_sft_ret_cfg,
 };
-
 
 #define CKECK_WFE_MSK		0x1
 #define CKECK_WFI_MSK		0x10

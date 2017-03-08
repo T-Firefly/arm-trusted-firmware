@@ -228,3 +228,23 @@ static void dbg_rk322x_irq_finish(void)
 {
 	dbg_report_irq();
 }
+
+void bl31_plat_runtime_setup(void)
+{
+	/* do nothing */
+}
+
+#if 0
+static __sramfunc void dbg_ddr_idle_req(void)
+{
+	uint32_t status1;
+	return;
+	mmio_write_32(GRF_BASE + GRF_SOC_CON(5),  BIT_WITH_WMSK(3));
+	dsb();
+	do {
+		status1 = mmio_read_32(GRF_BASE + GRF_SOC_STATUS(1));
+		status1 &= (BIT(3) | BIT(13));
+	} while (status1 != (BIT(3) | BIT(13)));
+}
+#endif
+

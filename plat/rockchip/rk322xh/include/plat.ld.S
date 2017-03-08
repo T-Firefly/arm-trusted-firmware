@@ -27,41 +27,9 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef __ROCKCHIP_PLAT_LD_S__
-#define __ROCKCHIP_PLAT_LD_S__
+#ifndef __ROCKCHIP_PLAT_LD_PRT_S__
+#define __ROCKCHIP_PLAT_LD_PRT_S__
 
-MEMORY {
-    SRAM (rwx): ORIGIN = SRAM_LDS_BASE, LENGTH = SRAM_LDS_SIZE
-}
-
-SECTIONS
-{
-	. = SRAM_LDS_BASE;
-	ASSERT(. == ALIGN(4096),
-		"SRAM_BASE address is not aligned on a page boundary.")
-
-	/*
-	 * The SRAM space allocation for RK322xh
-	 * ----------------
-	 * | sram text
-	 * ----------------
-	 * | sram data
-	 * ----------------
-	 */
-	.text_sram : ALIGN(4096) {
-		__bl31_sram_text_start = .;
-		*(.sram.text)
-		*(.sram.rodata)
-		. = ALIGN(4096);
-		__bl31_sram_text_end = .;
-	} >SRAM
-
-	.data_sram : ALIGN(4096) {
-		__bl31_sram_data_start = .;
-		*(.sram.data)
-		. = ALIGN(4096);
-		__bl31_sram_data_end = .;
-	} >SRAM
-}
+#include "../rk3328/include/plat.ld.S"
 
 #endif /* __ROCKCHIP_PLAT_LD_S__ */

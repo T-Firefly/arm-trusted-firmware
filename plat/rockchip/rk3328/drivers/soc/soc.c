@@ -32,7 +32,7 @@
 #include <platform_def.h>
 #include <plat_private.h>
 #include <ddr_parameter.h>
-#include <rk322xh_def.h>
+#include <rk3328_def.h>
 #include <soc.h>
 
 /* Table of regions to map using the MMU. */

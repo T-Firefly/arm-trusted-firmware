@@ -29,10 +29,8 @@
 #
 
 RK_PLAT			:=	plat/rockchip
-RK_PLAT_SOC		:=	${RK_PLAT}/rk3328
+RK_PLAT_SOC		:=	${RK_PLAT}/${PLAT}
 RK_PLAT_COMMON		:=	${RK_PLAT}/common
-
-RK_PLAT_SOC_PRT		:=	${RK_PLAT}/${PLAT}
 
 PLAT_INCLUDES		:=	-Idrivers/arm/gic/common/			\
 				-Idrivers/arm/gic/common/			\
@@ -42,13 +40,10 @@ PLAT_INCLUDES		:=	-Idrivers/arm/gic/common/			\
 				-I${RK_PLAT_COMMON}/pmusram                     \
 				-I${RK_PLAT_COMMON}/drivers/pmu/                \
 				-I${RK_PLAT_COMMON}/drivers/parameter/		\
-				-I${RK_PLAT_COMMON}/drivers/sram/               \
 				-I${RK_PLAT_SOC}/				\
 				-I${RK_PLAT_SOC}/drivers/pmu/			\
 				-I${RK_PLAT_SOC}/drivers/soc/			\
-				-I${RK_PLAT_SOC_PRT}/				\
-				-I${RK_PLAT_SOC_PRT}/include
-
+				-I${RK_PLAT_SOC}/include/
 
 RK_GIC_SOURCES		:=	drivers/arm/gic/common/gic_common.c		\
 				drivers/arm/gic/v2/gicv2_main.c			\
@@ -69,7 +64,6 @@ BL31_SOURCES		+=	${RK_GIC_SOURCES}				\
 				lib/cpus/aarch64/aem_generic.S			\
 				lib/cpus/aarch64/cortex_a53.S			\
 				plat/common/aarch64/platform_mp_stack.S		\
-				plat/rockchip/common/rockchip_exceptions.c	\
 				${RK_PLAT_COMMON}/drivers/parameter/ddr_parameter.c	\
 				${RK_PLAT_COMMON}/aarch64/plat_helpers.S	\
 				${RK_PLAT_COMMON}/bl31_plat_setup.c		\
@@ -78,24 +72,8 @@ BL31_SOURCES		+=	${RK_GIC_SOURCES}				\
 				${RK_PLAT_COMMON}/plat_pm.c			\
 				${RK_PLAT_COMMON}/plat_topology.c		\
 				${RK_PLAT_COMMON}/aarch64/platform_common.c	\
-				${RK_PLAT_COMMON}/rockchip_sip_svc.c		\
-				${RK_PLAT_COMMON}/drivers/sram/sram.c		\
-				${RK_PLAT_SOC}/drivers/soc/soc.c		\
-				${RK_PLAT_SOC_PRT}/plat_sip_calls.c		\
-				${RK_PLAT_SOC_PRT}/drivers/pmu/pmu.c
-
-
-ROCKCHIP_PRT_INCLUDES	:=	-I${RK_PLAT_COMMON}/drivers/efuse/		\
-				-I${RK_PLAT_SOC_PRT}/drivers/pwm/		\
-				-I${RK_PLAT_SOC_PRT}/drivers/monitor/
-
-PLAT_INCLUDES		+=	${ROCKCHIP_PRT_INCLUDES}
-
-ROCKCHIP_PRT		:=	${RK_PLAT_COMMON}/drivers/efuse/efuse.c		\
-                    		${RK_PLAT_SOC_PRT}/drivers/pwm/pwm_remotectl.c	\
-				${RK_PLAT_SOC_PRT}/drivers/monitor/monitor.c
-
-BL31_SOURCES    += ${ROCKCHIP_PRT}
+				${RK_PLAT_SOC}/drivers/pmu/pmu.c		\
+				${RK_PLAT_SOC}/drivers/soc/soc.c
 
 ENABLE_PLAT_COMPAT 	:=      0
 

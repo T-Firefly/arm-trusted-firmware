@@ -28,7 +28,7 @@
 #include <debug.h>
 #include <delay_timer.h>
 #include <mmio.h>
-#include <rk322xh_def.h>
+#include <platform_def.h>
 #include <efuse.h>
 #include <string.h>
 

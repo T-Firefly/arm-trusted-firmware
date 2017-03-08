@@ -30,8 +30,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define ARCH_TIMER_FREQ			24000000
-#define ARCH_TIMER_TICKS_PER_US		(ARCH_TIMER_FREQ / 1000000)
+#define ARCH_TIMER_TICKS_PER_US		(SYS_COUNTER_FREQ_IN_TICKS / 1000000)
 
 #define UART_LSR			0x14
 #define UART_FIFO_EMPTY			(BIT(6) | BIT(5))

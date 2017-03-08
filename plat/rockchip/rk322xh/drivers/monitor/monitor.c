@@ -31,7 +31,7 @@
 #include <interrupt_mgmt.h>
 #include <mmio.h>
 #include <platform.h>
-#include <rk322xh_def.h>
+#include <rk3328_def.h>
 #include <rockchip_exceptions.h>
 #include <plat_private.h>
 #include <soc.h>

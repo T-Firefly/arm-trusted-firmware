@@ -38,7 +38,6 @@
 #include <mmio.h>
 #include <platform_def.h>
 #include <plat_private.h>
-#include <rk322xh_def.h>
 #include <soc.h>
 #include <string.h>
 

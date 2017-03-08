@@ -4,16 +4,12 @@
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
- * Redistributions of source code must retain the above copyright notice, this
- * list of conditions and the following disclaimer.
+ * 1. Redistributions of source code must retain the above copyright notice,
+ * this list of conditions and the following disclaimer.
  *
- * Redistributions in binary form must reproduce the above copyright notice,
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
  * this list of conditions and the following disclaimer in the documentation
  * and/or other materials provided with the distribution.
- *
- * Neither the name of ARM nor the names of its contributors may be used
- * to endorse or promote products derived from this software without specific
- * prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -28,9 +24,12 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __PLAT_DEF_PRT_H__
-#define __PLAT_DEF_PRT_H__
+#ifndef __PLAT_SIP_CALLS_H__
+#define __PLAT_SIP_CALLS_H__
 
-#include "../rk3328/rk3328_def.h"
+#define RK_PLAT_SIP_NUM_CALLS	0
+#define RK_SIP_UARTDBG_CFG64	0xc2000005
+#define RK_SIP_ENABLE_FIQ	0xc2000007
+#define RK_SIP_REMOTECTL_CFG	0x8200000b
 
-#endif /* __PLAT_DEF_H__ */
+#endif /* __PLAT_SIP_CALLS_H__ */
