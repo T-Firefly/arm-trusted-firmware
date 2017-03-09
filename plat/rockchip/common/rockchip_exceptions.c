@@ -85,6 +85,8 @@
 static interrupt_type_handler_t rockchip_secfiq_handler[IRQ_NUM_MAX];
 static cpu_context_t fiq_ns_context[PLATFORM_CORE_COUNT];
 
+static uint8_t rockchip_secure_interrupt_setup;
+
 struct uartdbg_uart_info_t {
 	uint64_t os_handler;
 	uint32_t irq_id;
@@ -234,10 +236,15 @@ void rk_register_handler(void)
 
 	boot_cpu_msk = gic_get_cpuif_id();
 	INFO("boot cpu mask: %d\n", boot_cpu_msk);
+
+	rockchip_secure_interrupt_setup = 1;
 }
 
 int32_t register_secfiq_handler(uint32_t id, interrupt_type_handler_t handler)
 {
+	if (!rockchip_secure_interrupt_setup)
+		return SIP_RET_NOT_SUPPORTED;
+
 	if (id >= IRQ_NUM_MAX)
 		return SIP_RET_INVALID_PARAMS;
 
