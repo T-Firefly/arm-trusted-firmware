@@ -183,7 +183,7 @@ uint64_t sip_smc_handler(uint32_t smc_fid,
 {
 	uint32_t ns;
 	int ret;
-	struct arm_smccc_res res;
+	struct arm_smccc_res res = {0};
 
 	/* Determine which security state this SMC originated from */
 	ns = is_caller_non_secure(flags);

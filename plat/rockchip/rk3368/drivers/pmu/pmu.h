@@ -226,4 +226,8 @@ enum pmu_bus_idle_st {
 
 #define MAX_WAIT_CONUT 1000
 
+#define GPIO0A0_SEL_MSK		0x3
+#define GPIO0A0_SEL_SHIFT	0
+#define IOMUX_PMIC_SLP		2
+
 #endif /* __PMU_H__ */

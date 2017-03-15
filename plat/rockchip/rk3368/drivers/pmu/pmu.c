@@ -262,6 +262,9 @@ static void pmu_set_sleep_mode(void)
 	mmio_write_32(SGRF_BASE + SGRF_SOC_CON(2),
 		      (PMUSRAM_BASE >> CPU_BOOT_ADDR_ALIGN) |
 		      CPU_BOOT_ADDR_WMASK);
+	mmio_write_32(PMU_GRF_BASE, BITS_WITH_WMASK(IOMUX_PMIC_SLP,
+						    GPIO0A0_SEL_MSK,
+						    GPIO0A0_SEL_SHIFT));
 }
 
 void plat_rockchip_pmusram_prepare(void)
@@ -299,7 +302,7 @@ static int cpus_id_power_domain(uint32_t cluster,
 				uint32_t wfie_msk)
 {
 	uint32_t pd;
-	uint64_t mpidr;
+	uint32_t cpu_id;
 
 	if (cluster)
 		pd = PD_CPUB0 + cpu;
@@ -310,8 +313,8 @@ static int cpus_id_power_domain(uint32_t cluster,
 		return 0;
 
 	if (pd_state == pmu_pd_off) {
-		mpidr = (cluster << MPIDR_AFF1_SHIFT) | cpu;
-		if (check_cpu_wfie(mpidr, wfie_msk))
+		cpu_id = cluster * PLATFORM_CLUSTER0_CORE_COUNT + cpu;
+		if (check_cpu_wfie(cpu_id, wfie_msk))
 			return -EINVAL;
 	}
 
