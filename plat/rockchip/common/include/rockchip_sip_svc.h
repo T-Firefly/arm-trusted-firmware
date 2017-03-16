@@ -34,6 +34,7 @@
 
 /* Rockchip SiP Service Calls */
 #define RK_SIP_ATF_VERSION32		0x82000001
+#define RK_SIP_ACCESS_REG32		0x82000002
 #define RK_SIP_SUSPEND_MODE32		0x82000003
 #define RK_SIP_UARTDBG_CFG64		0xc2000005
 #define RK_SIP_ENABLE_FIQ		0xc2000007
@@ -49,6 +50,10 @@
 #define SUSPEND_DEBUG_ENABLE		0x05
 #define APIOS_SUSPEND_CONFIG		0x06
 #define VIRTUAL_POWEROFF		0x07
+
+/* RK_SIP_ACCESS_REG32 read/write */
+#define SEC_REG_RD			0x0
+#define SEC_REG_WR			0x1
 
 /* Rockchip SiP Service Calls version numbers */
 #define RK_SIP_SVC_VERSION_MAJOR	0x0
