@@ -33,6 +33,7 @@
 #include <gicv2.h>
 #include <gicv2_private.h>
 #include <platform_def.h>
+#include <plat_private.h>
 #include <utils.h>
 #include <gic_common_private.h>
 
@@ -123,7 +124,7 @@ void plat_rockchip_gic_fiq_enable(uint32_t irq, uint8_t target_cpu)
 		gicd_clr_igroupr(PLAT_RK_GICD_BASE, irq);
 		gicd_set_ipriorityr(PLAT_RK_GICD_BASE, irq,
 				    GIC_HIGHEST_SEC_PRIORITY);
-		gicd_set_itargetsr(PLAT_RK_GICD_BASE, irq, target_cpu);
+		gicd_set_itargetsr(PLAT_RK_GICD_BASE, irq, BIT(target_cpu));
 		gicd_set_isenabler(PLAT_RK_GICD_BASE, irq);
 	}
 }
@@ -135,7 +136,7 @@ void plat_rockchip_gic_fiq_disable(uint32_t irq)
 
 void plat_rockchip_gic_set_itargetsr(uint8_t irq, uint8_t target_cpu)
 {
-	gicd_set_itargetsr(PLAT_RK_GICD_BASE, irq, target_cpu);
+	gicd_set_itargetsr(PLAT_RK_GICD_BASE, irq, BIT(target_cpu));
 }
 
 unsigned int plat_rockchip_gic_version(void)

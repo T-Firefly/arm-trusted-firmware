@@ -49,7 +49,7 @@
 #define MAX_PANIC_SEC		120
 
 #define FIQ_SEC_PHY_TIMER	29
-#define MONITOR_TGT_CPU		0x1
+#define MONITOR_TGT_CPU		0
 /************************** SoC id phandle ************************************/
 #define SOC_RK322XH		0x3228F
 #define SOC_RK3328		0x3328

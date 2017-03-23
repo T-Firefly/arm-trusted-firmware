@@ -260,7 +260,7 @@ uint64_t mcu_dfs_governor_register(uint32_t dfs_irq, uint32_t tgt_cpu,
 		return err;
 
 	/* enable MCU fiq and set target cpu */
-	plat_rockchip_gic_fiq_enable(dfs_irq, 1 << tgt_cpu);
+	plat_rockchip_gic_fiq_enable(dfs_irq, tgt_cpu);
 
 	/* MCU dfs done flag */
 	res->a1 = (uint64_t)&mcu_dfs_done_flag;

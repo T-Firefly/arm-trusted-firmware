@@ -109,7 +109,7 @@ struct uartdbg_el1_st_t {
 
 static struct uartdbg_el1_st_t uartdbg_el_data;
 static struct uartdbg_uart_info_t uartdbg_uart_info;
-static uint8_t boot_cpu_msk;
+static uint8_t boot_cpu_msk, boot_cpu;
 static cpu_context_t rk_sec_context[PLATFORM_CORE_COUNT];
 
 static uint64_t gic_handle_irq(uint32_t id,
@@ -251,6 +251,7 @@ void rk_register_interrupt_routing_model(void)
 	if (rc)
 		panic();
 
+	boot_cpu = plat_my_core_pos();
 	boot_cpu_msk = gic_get_cpuif_id();
 	INFO("boot cpu mask: %d\n", boot_cpu_msk);
 
@@ -364,16 +365,12 @@ static uint64_t uartdbg_oshdl_to_os_smc_handler(void *handle)
 	return SIP_RET_SUCCESS;
 }
 
-static uint64_t uartdbg_sw_cpu_smc_handler(void *handle, uint64_t mpidr)
+static uint64_t uartdbg_sw_cpu_smc_handler(void *handle, uint64_t tgt_cpu)
 {
-	uint32_t line_id = plat_core_pos_by_mpidr(mpidr);
-	uint8_t irq_msk = 0x1 << line_id;
-
-	if (line_id >= PLATFORM_CORE_COUNT)
+	if (tgt_cpu >= PLATFORM_CORE_COUNT)
 		return SIP_RET_INVALID_PARAMS;
 
-	plat_rockchip_gic_set_itargetsr(uartdbg_uart_info.irq_id, 0);
-	plat_rockchip_gic_set_itargetsr(uartdbg_uart_info.irq_id, irq_msk);
+	plat_rockchip_gic_set_itargetsr(uartdbg_uart_info.irq_id, tgt_cpu);
 
 	return SIP_RET_SUCCESS;
 }
@@ -415,7 +412,7 @@ static uint64_t uartdbg_init_smc_handler(uint64_t uart_irq_id,
 		return ret;
 	}
 
-	plat_rockchip_gic_fiq_enable(uart_irq_id, boot_cpu_msk);
+	plat_rockchip_gic_fiq_enable(uart_irq_id, boot_cpu);
 
 	uartdbg_uart_info.irq_id = uart_irq_id;
 	uartdbg_uart_info.os_handler = os_handler;
@@ -440,9 +437,7 @@ static uint64_t uartdbg_init_smc_handler(uint64_t uart_irq_id,
 
 static int uartdbg_enable_fiq(uint32_t tgt_cpu)
 {
-	uint32_t cpu_mask = 1 << tgt_cpu;
-
-	plat_rockchip_gic_fiq_enable(uartdbg_uart_info.irq_id, cpu_mask);
+	plat_rockchip_gic_fiq_enable(uartdbg_uart_info.irq_id, tgt_cpu);
 
 	return SIP_RET_SUCCESS;
 }
