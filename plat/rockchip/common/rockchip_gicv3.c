@@ -31,10 +31,12 @@
 #include <bl_common.h>
 #include <gic_common_private.h>
 #include <gicv3.h>
+#include <gicv3_private.h>
 #include <platform.h>
 #include <platform_def.h>
 #include <plat_private.h>
 #include <utils.h>
+#include <gic_common.h>
 
 /******************************************************************************
  * The following functions are defined as weak to allow a platform to override
@@ -155,4 +157,15 @@ void plat_rockchip_gic_fiq_disable(uint32_t irq)
 void plat_rockchip_gic_set_itargetsr(uint8_t irq, uint8_t target_cpu)
 {
 	gicd_set_itargetsr(PLAT_RK_GICD_BASE, irq, target_cpu);
+}
+
+unsigned int plat_rockchip_gic_version(void)
+{
+	unsigned int gic_version;
+
+	gic_version = gicd_read_pidr2(PLAT_RK_GICD_BASE);
+	gic_version = (gic_version >> PIDR2_ARCH_REV_SHIFT)
+				& PIDR2_ARCH_REV_MASK;
+
+	return gic_version;
 }

@@ -31,6 +31,7 @@
 #ifndef __GICV3_PRIVATE_H__
 #define __GICV3_PRIVATE_H__
 
+#include <assert.h>
 #include <gicv3.h>
 #include <mmio.h>
 #include <stdint.h>

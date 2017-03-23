@@ -41,6 +41,7 @@ PLAT_INCLUDES           :=	-I${RK_PLAT_COMMON}/				\
                                 -I${RK_PLAT_SOC}/drivers/soc/                   \
                                 -I${RK_PLAT_SOC}/drivers/dram/			\
 				-Idrivers/arm/gic/common/			\
+				-Idrivers/arm/gic/v3/				\
                                 -I${RK_PLAT_SOC}/include/                       \
 				-I${RK_PLAT_SOC}/include/shared/	\
 

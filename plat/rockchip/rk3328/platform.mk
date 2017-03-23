@@ -33,7 +33,7 @@ RK_PLAT_SOC		:=	${RK_PLAT}/${PLAT}
 RK_PLAT_COMMON		:=	${RK_PLAT}/common
 
 PLAT_INCLUDES		:=	-Idrivers/arm/gic/common/			\
-				-Idrivers/arm/gic/common/			\
+				-Idrivers/arm/gic/v2/			\
 				-Iinclude/plat/common/				\
 				-I${RK_PLAT_COMMON}/                            \
 				-I${RK_PLAT_COMMON}/include/                    \
