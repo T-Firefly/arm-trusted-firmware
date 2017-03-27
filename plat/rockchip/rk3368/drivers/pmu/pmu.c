@@ -34,6 +34,7 @@
 #include <platform_def.h>
 #include <plat_private.h>
 #include <rk3368_def.h>
+#include <rockchip_exceptions.h>
 #include <pmu_sram.h>
 #include <soc.h>
 #include <pmu.h>

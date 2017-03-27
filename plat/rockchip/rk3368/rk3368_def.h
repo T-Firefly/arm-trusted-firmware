@@ -56,8 +56,8 @@
 #define PMU_GRF_BASE		0xff738000
 #define PMU_SIZE		0x10000
 
-#define RK_INTMEM_BASE		0xff8c0000
-#define RK_INTMEM_SIZE		0x10000
+#define SRAM_BASE		0xff8c0000
+#define SRAM_SIZE		0x10000
 
 #define UART_DBG_BASE		0xff1b0000
 #define UART_DBG_SIZE		0x10000

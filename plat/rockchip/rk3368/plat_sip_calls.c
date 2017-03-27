@@ -24,11 +24,18 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <assert.h>
+#include <cpu_data.h>
 #include <debug.h>
+#include <delay_timer.h>
 #include <mmio.h>
+#include <platform.h>
+#include <plat_private.h>
 #include <plat_sip_calls.h>
+#include <pmu.h>
 #include <rockchip_sip_svc.h>
 #include <runtime_svc.h>
+#include <fiq_dfs.h>
 
 #define ACCESS_REGS_TBL_CN	1
 
@@ -69,6 +76,53 @@ exit:
 	return ret;
 }
 
+int dfs_wait_cpus_wfe(void)
+{
+	uint32_t val, tgt_wfe, pd_st, wfe_st, loop = 2500;
+
+	/* unmask current cpu */
+	tgt_wfe = 0xff & (~(1 << plat_my_core_pos()));
+
+	/* unmask offline(power down) cpus */
+	val = mmio_read_32(PMU_BASE + PMU_PWRDN_ST);
+	pd_st = (val & 0x0f) | ((val >> 1) & 0xf0); /* bit[8:5][3:0] */
+	tgt_wfe &= ~(pd_st);
+
+	/* read wfe status on cpus */
+	val = (mmio_read_32(PMU_BASE + PMU_CORE_PWR_ST));
+	wfe_st = ((val >> 2) & 0xf) | ((val >> 8) & 0xf0); /* bit[15:12][5:2] */
+
+	/* wait timeout 5ms */
+	while (((wfe_st & tgt_wfe) != tgt_wfe) && loop > 0) {
+		udelay(2);
+		loop--;
+		/* read wfe status on cpus */
+		val = (mmio_read_32(PMU_BASE + PMU_CORE_PWR_ST));
+		wfe_st = ((val >> 2) & 0xf) | ((val >> 8) & 0xf0);
+	}
+
+	return ((wfe_st & tgt_wfe) == tgt_wfe) ? 0 : 1;
+}
+
+static int mcu_dfs_handler(uint64_t func,
+		       uint64_t irq,
+		       uint64_t tgt_cpu,
+		       struct arm_smccc_res *res)
+{
+	int ret;
+
+	switch (func) {
+	case FIQ_INIT_HANDLER:
+		ret = mcu_dfs_governor_register(irq, tgt_cpu, res);
+		break;
+
+	default:
+		return SMC_UNK;
+	}
+
+	return ret;
+}
+
 uint64_t rockchip_plat_sip_handler(uint32_t smc_fid,
 				   uint64_t x1,
 				   uint64_t x2,
@@ -85,6 +139,10 @@ uint64_t rockchip_plat_sip_handler(uint32_t smc_fid,
 	case RK_SIP_ACCESS_REG32:
 		ret = regs_access(x1, x2, x3, &res);
 		SMC_RET2(handle, ret, res.a1);
+
+	case RK_SIP_MCU_EL3FIQ_CFG:
+		ret = mcu_dfs_handler(x1, x2, x3, &res);
+		SMC_RET4(handle, ret, res.a1, res.a2, res.a3);
 
 	default:
 		ERROR("%s: unhandled SMC (0x%x)\n", __func__, smc_fid);

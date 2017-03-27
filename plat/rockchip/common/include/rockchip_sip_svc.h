@@ -37,6 +37,7 @@
 #define RK_SIP_ACCESS_REG32		0x82000002
 #define RK_SIP_SUSPEND_MODE32		0x82000003
 #define RK_SIP_UARTDBG_CFG64		0xc2000005
+#define RK_SIP_MCU_EL3FIQ_CFG		0x82000006
 #define RK_SIP_ENABLE_FIQ		0xc2000007
 #define RK_SIP_DDR_CFG32		0x82000008
 #define RK_SIP_SHARE_MEM32		0x82000009
@@ -54,6 +55,9 @@
 /* RK_SIP_ACCESS_REG32 read/write */
 #define SEC_REG_RD			0x0
 #define SEC_REG_WR			0x1
+
+/* RK_SIP_MCU_EL3FIQ_CFG */
+#define FIQ_INIT_HANDLER		0x01
 
 /* Rockchip SiP Service Calls version numbers */
 #define RK_SIP_SVC_VERSION_MAJOR	0x0
