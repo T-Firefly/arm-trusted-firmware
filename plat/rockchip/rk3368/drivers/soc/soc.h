@@ -96,6 +96,9 @@ enum plls_id {
 #define RST_DMA1_MSK		0x4
 #define RST_DMA2_MSK		0x0
 
+#define RST_DMA1_SHIFT		14
+#define RST_MCU_NOC_SHIFT	2
+
 #define CRU_CLKSEL_CON		0x100
 #define CRU_CLKSELS_CON(i)	(CRU_CLKSEL_CON + ((i) * 4))
 #define CRU_CLKSEL_CON_CNT	56

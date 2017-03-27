@@ -96,19 +96,14 @@ void sgrf_init(void)
 	mmio_write_32(SGRF_BASE + SGRF_BUSDMAC_CON(1), SGRF_BUSDMAC_CON1_NS);
 	dsb();
 
-	/* rst dma1 */
+	/* rst dma1 and mcu noc*/
 	mmio_write_32(CRU_BASE + CRU_SOFTRSTS_CON(1),
-		      RST_DMA1_MSK | (RST_DMA1_MSK << 16));
-	/* rst dma2 */
-	mmio_write_32(CRU_BASE + CRU_SOFTRSTS_CON(4),
-		      RST_DMA2_MSK | (RST_DMA2_MSK << 16));
-
+		      BIT_WITH_WMSK(RST_DMA1_SHIFT) |
+		      BIT_WITH_WMSK(RST_MCU_NOC_SHIFT));
 	dsb();
-
-	/* release dma1 rst*/
-	mmio_write_32(CRU_BASE + CRU_SOFTRSTS_CON(1), (RST_DMA1_MSK << 16));
-	/* release dma2 rst*/
-	mmio_write_32(CRU_BASE + CRU_SOFTRSTS_CON(4), (RST_DMA2_MSK << 16));
+	/* release dma1 and mcu noc rst*/
+	mmio_write_32(CRU_BASE + CRU_SOFTRSTS_CON(1),
+		      WMSK_BIT(RST_DMA1_SHIFT) | WMSK_BIT(RST_MCU_NOC_SHIFT));
 }
 
 void plat_rockchip_soc_init(void)
