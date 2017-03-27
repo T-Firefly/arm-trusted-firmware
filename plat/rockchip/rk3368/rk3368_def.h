@@ -59,7 +59,7 @@
 #define RK_INTMEM_BASE		0xff8c0000
 #define RK_INTMEM_SIZE		0x10000
 
-#define UART_DBG_BASE		0xff690000
+#define UART_DBG_BASE		0xff1b0000
 #define UART_DBG_SIZE		0x10000
 
 #define CRU_BASE		0xff760000
