@@ -37,6 +37,7 @@
 #include <context_mgmt.h>
 #include <cpu_data.h>
 #include <debug.h>
+#include <gic_common.h>
 #include <interrupt_mgmt.h>
 #include <platform_def.h>
 #include <platform.h>
@@ -44,12 +45,6 @@
 #include <string.h>
 #include <pmu.h>
 #include <rockchip_sip_svc.h>
-
-#define RKSIP_EL3FIQ_CFG			0x82000006
-#define RKSIP_ACCESS_CHIP_STATE64		0xc2000006
-#define RKSIP_ACCESS_CHIP_EXTRA_STATE64		0xc2000007
-#define TFW_DATA_FIQ_SIZE			SIZE_K(8)
-#define FIQ_FLAG	(SHARE_MEM_BASE + TFW_DATA_FIQ_SIZE - 0x04)
 
 #define UARTDBG_CFG_INIT		0xf0
 #define UARTDBG_CFG_OSHDL_TO_OS		0xf1
@@ -79,8 +74,6 @@
 
 #define MPDIR_CRT(cluster, cpu) \
 	((cluster) << MPIDR_AFF1_SHIFT | (cpu) << MPIDR_AFF0_SHIFT)
-
-#define TFW_DATA_FIQ_CXT_SIZE (sizeof(cpu_context_t))
 
 static interrupt_type_handler_t rockchip_secfiq_handler[IRQ_NUM_MAX];
 static cpu_context_t fiq_ns_context[PLATFORM_CORE_COUNT];
@@ -123,7 +116,7 @@ static uint64_t gic_handle_irq(uint32_t id,
 		return GIC_RET_ERRORID;
 }
 
-static uint32_t uartdbg_set_print_port(uint32_t port, uint32_t baudrate)
+static uint32_t uartdbg_set_print_port(uint32_t uart_base, uint32_t baudrate)
 {
 	return SIP_RET_NOT_SUPPORTED;
 }
@@ -207,6 +200,8 @@ void rk_register_interrupt_routing_model(void)
 {
 	uint64_t flags, rc, mpidr;
 	uint32_t linear_id, cluster, cpu;
+	uint32_t intr_type;
+	unsigned int gic_version;
 
 	for (cluster = 0; cluster < PLATFORM_CLUSTER_COUNT; cluster++) {
 		if (cluster == 0) {
@@ -245,7 +240,15 @@ void rk_register_interrupt_routing_model(void)
 	 * INTR_SEL1_VALID_RM1
 	 */
 
-	rc = register_interrupt_type_handler(INTR_TYPE_S_EL1,
+	gic_version = plat_rockchip_gic_version();
+	if (gic_version == ARCH_REV_GICV2)
+		intr_type = INTR_TYPE_S_EL1;
+	else if (gic_version == ARCH_REV_GICV3)
+		intr_type = INTR_TYPE_EL3;
+	else
+		panic();
+
+	rc = register_interrupt_type_handler(intr_type,
 					     gic_handle_except,
 					     flags);
 	if (rc)
@@ -282,22 +285,25 @@ static void uartdbg_to_oshdl_handler(uint64_t handler, void *handle_ctx)
 	void *fiq_ret_ctx;
 	gp_regs_t *el1_gp_state;
 	size_t cpudata_size = sizeof(cpu_context_t);
-	uint32_t line_id = plat_core_pos_by_mpidr(read_mpidr_el1());
-	uint64_t dbg_sp_el3;
+	uint32_t cpu = plat_core_pos_by_mpidr(read_mpidr_el1());
+	uint64_t sp_el0, cpsr_el1;
 
 	assert(handle_ctx == cm_get_context(NON_SECURE));
 
-	/* save: spsr_el1, sp_el1 */
+	/* save: cpsr_el1, sp_el1 */
 	cm_el1_sysregs_context_save(NON_SECURE);
 	el1_gp_state = get_gpregs_ctx(cm_get_context(NON_SECURE));
-	dbg_sp_el3 = read_ctx_reg(el1_gp_state, CTX_GPREG_SP_EL0);
+	sp_el0 = read_ctx_reg(el1_gp_state, CTX_GPREG_SP_EL0);
+	el3_state = get_el3state_ctx(cm_get_context(NON_SECURE));
+	cpsr_el1 = read_ctx_reg(el3_state, CTX_SPSR_EL3);
 
 	uartdbg_el_data.tf_ctx = handle_ctx;
-	fiq_ret_ctx = &fiq_ns_context[line_id];
+	fiq_ret_ctx = &fiq_ns_context[cpu];
 
+	fiq_dbg_ctx = uartdbg_el_data.fiq_dbg_ctx + cpu * cpudata_size;
+	memcpy((char *)(fiq_dbg_ctx + CTX_EL3STATE_OFFSET + CTX_SPSR_EL3),
+		&cpsr_el1, sizeof(cpsr_el1));
 	if (uartdbg_uart_info.dbg_en) {
-		fiq_dbg_ctx = uartdbg_el_data.fiq_dbg_ctx +
-			      line_id * cpudata_size;
 		if (!uartdbg_el_data.tf_ctx)
 			ERROR("uartdbg_el_data.tf_ctx err\n");
 		if (!fiq_dbg_ctx)
@@ -334,15 +340,15 @@ static void uartdbg_to_oshdl_handler(uint64_t handler, void *handle_ctx)
 
 	gp_state = get_gpregs_ctx(fiq_ret_ctx);
 
-	write_ctx_reg(gp_state, CTX_GPREG_SP_EL0, dbg_sp_el3);
-
+	write_ctx_reg(gp_state, CTX_GPREG_SP_EL0, sp_el0);
 	/*
 	  * oshdl_handler maybe change sp_el1,
 	  * but fiq debug need the sp_el1 for kernel info
 	  */
 	write_ctx_reg(gp_state, CTX_GPREG_X0, uartdbg_el_data.sp_el1);
 	write_ctx_reg(gp_state, CTX_GPREG_X1,
-		      line_id * cpudata_size);
+		      cpu * cpudata_size);
+	write_ctx_reg(gp_state, CTX_GPREG_X2, cpu);
 }
 
 static uint64_t uartdbg_oshdl_to_os_smc_handler(void *handle)
@@ -385,7 +391,7 @@ static uint64_t uartdbg_irq_handler(uint32_t irqstat,
 	uartdbg_uart_info.irqstat = irqstat;
 
 	/* MMU not enable(the time that cpu boots up in EL2) */
-	if ((read_sctlr_el1() & SCTLR_M_BIT) != SCTLR_M_BIT) {
+	if (GET_EL(read_spsr_el3()) == MODE_EL2) {
 		plat_rockchip_gic_fiq_disable(uartdbg_uart_info.irq_id);
 		return GIC_RET_SUCCESS;
 	}
@@ -474,7 +480,7 @@ uint64_t fiq_debugger_smc_handler(uint64_t fun_id,
 		return SIP_RET_SUCCESS;
 
 	case UARTDBG_CFG_PRINT_PORT:
-		 return uartdbg_set_print_port(x1, x2);
+		return uartdbg_set_print_port(x1, x2);
 
 	case UARTDBG_CFG_FIQ_ENABLE:
 		return uartdbg_enable_fiq(x1);
