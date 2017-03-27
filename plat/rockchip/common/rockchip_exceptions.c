@@ -136,6 +136,19 @@ uint32_t get_uart_irq_id(void)
 /******************************************************************
  ** linux os handler
  ******************************************************************/
+static uint64_t gic_handle_ipi(uint32_t id,
+			       uint32_t flags,
+			       void *handle,
+			       void *cookie)
+{
+	assert(handle == cm_get_context(NON_SECURE));
+
+	if (rockchip_secfiq_handler[id])
+		return rockchip_secfiq_handler[id] (id, flags, handle, cookie);
+	else
+		return GIC_RET_ERRORID;
+}
+
 static uint64_t gic_handle_except(uint32_t id,
 				  uint32_t flags,
 				  void *handle,
@@ -165,6 +178,10 @@ static uint64_t gic_handle_except(uint32_t id,
 		}
 
 		if (irqnr < 16) {
+			ret = gic_handle_ipi(irqnr, flags, handle, cookie);
+			if (ret == GIC_RET_ERRORID)
+				return 0;
+
 			plat_ic_end_of_interrupt(irqstat);
 			continue;
 		}
@@ -474,4 +491,3 @@ uint64_t fiq_debugger_smc_handler(uint64_t fun_id,
 		return SMC_UNK;
 	}
 }
-

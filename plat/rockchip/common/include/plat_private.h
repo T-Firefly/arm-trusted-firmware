@@ -161,6 +161,9 @@ void plat_rockchip_mem_prepare(void);
 #define PMU_CPU_AUTO_PWRDN	0xf0
 #define PMU_CLST_RET	0xa5
 
-#define GIC_TARGET_CPU_MASK	0x3f
+#ifndef GIC_TARGET_CPU_MASK
+#define GIC_TARGET_CPU_MASK    0x3f
+#endif
+
 #define GICD_ITARGETSR		0x800
 #endif /* __PLAT_PRIVATE_H__ */
