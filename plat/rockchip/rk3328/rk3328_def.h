@@ -147,7 +147,7 @@
  * terminology. On a GICv2 system or mode, the lists will be merged and treated
  * as Group 0 interrupts.
  */
-#define RK_G1S_IRQS		(RK_IRQ_SEC_PHY_TIMER)
+#define RK_G1S_IRQS		RK_IRQ_SEC_PHY_TIMER, RK_IRQ_SEC_SGI_6
 
 #define SHARE_MEM_BASE          0x100000/* [1MB, 1MB+60K]*/
 #define SHARE_MEM_PAGE_NUM      15
