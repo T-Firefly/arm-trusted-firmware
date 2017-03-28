@@ -23,14 +23,44 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
+
 #include <console.h>
+#include <cpu_data.h>
 #include <debug.h>
+#include <delay_timer.h>
+#include <fiq_dfs.h>
 #include <plat_sip_calls.h>
+#include <platform.h>
+#include <pmu.h>
 #include <pwm_remotectl.h>
 #include <rk322xh_def.h>
 #include <rockchip_sip_svc.h>
 #include <runtime_svc.h>
 #include <soc.h>
+
+int dfs_wait_cpus_wfe(void)
+{
+	uint32_t tgt_wfe, pd_st, wfe_st, loop = 2500;
+
+	/* unmask current cpu */
+	tgt_wfe = 0x0f & ~BIT(plat_my_core_pos());
+
+	/* unmask offline cpus */
+	pd_st = mmio_read_32(PMU_BASE + PMU_PWRDN_ST) & 0x0f;
+	tgt_wfe &= ~(pd_st);
+
+	/* timeout 5ms */
+	wfe_st = mmio_read_32(GRF_BASE + GRF_CPU_STATUS(1)) & 0x0f;
+	while (((wfe_st & tgt_wfe) != tgt_wfe) && loop > 0) {
+		udelay(2);
+		loop--;
+		wfe_st = mmio_read_32(GRF_BASE + GRF_CPU_STATUS(1)) & 0x0f;
+	}
+
+	wfe_st = mmio_read_32(GRF_BASE + GRF_CPU_STATUS(1)) & 0x0f;
+
+	return ((wfe_st & tgt_wfe) == tgt_wfe) ? 0 : 1;
+}
 
 static int atf_version_handler(struct arm_smccc_res *res)
 {
