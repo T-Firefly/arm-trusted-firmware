@@ -66,39 +66,6 @@ static int ddr_smc_handler(uint64_t arg0, uint64_t arg1,
 	return SIP_RET_SUCCESS;
 }
 
-#pragma weak fiq_disable_flag
-#pragma weak fiq_enable_flag
-#pragma weak get_uart_irq_id
-
-void fiq_disable_flag(uint32_t cpu_id)
-{
-}
-
-void fiq_enable_flag(uint32_t cpu_id)
-{
-}
-
-uint32_t get_uart_irq_id(void)
-{
-	return 0;
-}
-
-static int fiq_dbg_enable(void)
-{
-	uint32_t cpu_id;
-	uint32_t interrupt_id;
-
-	interrupt_id = get_uart_irq_id();
-	if (interrupt_id) {
-		cpu_id = plat_my_core_pos();
-		fiq_enable_flag(cpu_id);
-		plat_rockchip_gic_fiq_enable(interrupt_id, 0);
-		return SIP_RET_SUCCESS;
-	}
-
-	return SIP_RET_DENIED;
-}
-
 uint64_t rockchip_plat_sip_handler(uint32_t smc_fid,
 				   uint64_t x1,
 				   uint64_t x2,
@@ -123,9 +90,6 @@ uint64_t rockchip_plat_sip_handler(uint32_t smc_fid,
 	case RK_SIP_SHARE_MEM32:
 		ret = share_mem_page_get_handler(x1, x2, &res);
 		SMC_RET4(handle, ret, res.a1, res.a2, res.a3);
-
-	case RK_SIP_ENABLE_FIQ:
-		SMC_RET1(handle, fiq_dbg_enable());
 
 	default:
 		ERROR("%s: unhandled SMC (0x%x)\n", __func__, smc_fid);
