@@ -50,6 +50,7 @@
 #include <suspend.h>
 #include <m0_ctl.h>
 #include <rockchip_sip_svc.h>
+#include <rockchip_exceptions.h>
 #include <dfs.h>
 
 DEFINE_BAKERY_LOCK(rockchip_pd_lock);
@@ -74,12 +75,6 @@ static uint32_t core_pm_cfg_info[PLATFORM_CORE_COUNT]
 __attribute__ ((section("tzfw_coherent_mem")))
 #endif
 ;/* coheront */
-
-#pragma weak rk_register_handler
-
-void rk_register_handler(void)
-{
-}
 
 static void pmu_bus_idle_req(uint32_t bus, uint32_t state)
 {
@@ -1079,7 +1074,7 @@ void plat_rockchip_pmu_init(void)
 		      CPU_BOOT_ADDR_WMASK);
 	mmio_write_32(PMU_BASE + PMU_NOC_AUTO_ENA, NOC_AUTO_ENABLE);
 
-	rk_register_handler();
+	rk_register_interrupt_routing_model();
 	/*
 	 * Enable Schmitt trigger for better 32 kHz input signal, which is
 	 * important for suspend/resume reliability among other things.

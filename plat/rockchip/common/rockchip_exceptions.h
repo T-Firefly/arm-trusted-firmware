@@ -33,6 +33,7 @@
 #include <arch.h>
 #include <interrupt_mgmt.h>
 
+void rk_register_interrupt_routing_model(void);
 int32_t register_secfiq_handler(uint32_t id, interrupt_type_handler_t handler);
 void plat_rockchip_gic_fiq_enable(uint32_t irq, uint8_t target_cpu);
 void plat_rockchip_gic_fiq_disable(uint32_t irq);

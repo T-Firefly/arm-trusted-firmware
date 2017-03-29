@@ -39,6 +39,7 @@
 #include <pmu_sram.h>
 #include <pmu.h>
 #include <rk3328_def.h>
+#include <rockchip_exceptions.h>
 #include <pmu_com.h>
 
 DEFINE_BAKERY_LOCK(rockchip_pd_lock);

@@ -416,6 +416,8 @@ void plat_rockchip_pmu_init(void)
 	psram_sleep_cfg->boot_mpidr = read_mpidr_el1() & 0xffff;
 
 	nonboot_cpus_off();
+	rk_register_interrupt_routing_model();
+
 	INFO("%s(%d): pd status %x\n", __func__, __LINE__,
 	     mmio_read_32(PMU_BASE + PMU_PWRDN_ST));
 }

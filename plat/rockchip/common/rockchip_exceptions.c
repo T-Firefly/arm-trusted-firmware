@@ -201,9 +201,9 @@ static unsigned int gic_get_cpuif_id(void)
 
 /*
  * cpu_context[] nosecure init is runtime_svc_init()
- * so rk_register_handler call following runtime_svc_init()
+ * so rk_register_interrupt_routing_model call following runtime_svc_init()
  */
-void rk_register_handler(void)
+void rk_register_interrupt_routing_model(void)
 {
 	uint64_t flags, rc, mpidr;
 	uint32_t linear_id, cluster, cpu;

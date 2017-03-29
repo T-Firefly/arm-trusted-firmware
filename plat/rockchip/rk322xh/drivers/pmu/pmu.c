@@ -38,9 +38,10 @@
 #include <plat_private.h>
 #include <pmu_sram.h>
 #include <pmu.h>
-#include <rk322xh_def.h>
 #include <pmu_com.h>
 #include <pwm_remotectl.h>
+#include <rk322xh_def.h>
+#include <rockchip_exceptions.h>
 #include <monitor.h>
 #include <sram.h>
 #include "pmu_prt_dbg.c"
@@ -763,7 +764,7 @@ void plat_rockchip_pmu_init(void)
 
 	nonboot_cpus_off();
 
-	rk_register_handler();
+	rk_register_interrupt_routing_model();
 	prt_rk_soc_monitor_init();
 
 	INFO("%s: pd status 0x%x\n",
