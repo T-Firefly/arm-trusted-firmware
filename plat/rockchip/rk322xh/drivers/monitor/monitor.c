@@ -45,7 +45,6 @@
 
 /************************** config param **************************************/
 #define MONITOR_POLL_SEC	10
-#define MAX_WAIT_SEC		(20 * 60)	/* 20 minutes */
 #define MAX_PANIC_SEC		120
 
 #define FIQ_SEC_PHY_TIMER	29
@@ -181,7 +180,6 @@ static uint64_t soc_monitor_isr(uint32_t id,
 				void *cookie)
 {
 	uint32_t cntptval, panic_cnt = 0;
-	static uint32_t wait_cnt, cpu_online_mask;
 
 	/* temporary root, read new sw id */
 	if (rockchip_sw_id == SOC_ROOT)
@@ -200,15 +198,6 @@ static uint64_t soc_monitor_isr(uint32_t id,
 		panic_cnt = random_panic();
 	}
 
-	/* smp brought up yet and timeout to write sw series, panic */
-	if (cpu_online_mask <= 0x1)
-		cpu_online_mask = mmio_read_32(PMU_BASE + PMU_PWRDN_ST) & 0x0f;
-	if ((rockchip_sw_id == SOC_ROOT) && (cpu_online_mask >= 0x03) &&
-	    (++wait_cnt > (MAX_WAIT_SEC / MONITOR_POLL_SEC))) {
-		DBG_INFO("sw wait timeout\n");
-		panic_cnt = random_panic();
-	}
-
 	/* must panic if random panic over seconds */
 	if (panic_cnt > (MAX_PANIC_SEC / MONITOR_POLL_SEC)) {
 		DBG_INFO("panic wait timeout\n");
@@ -218,7 +207,6 @@ static uint64_t soc_monitor_isr(uint32_t id,
 	/* match, disable fiq timer */
 	if ((rockchip_soc_id == rockchip_sw_id) &&
 	    (rockchip_soc_id != SOC_ROOT) && (rockchip_sw_id != SOC_ROOT)) {
-		wait_cnt = 0;
 		arch_timer_set_cntpctl(0);
 		plat_rockchip_gic_fiq_disable(FIQ_SEC_PHY_TIMER);
 		DBG_INFO("match: disable fiq timer\n");
@@ -229,11 +217,9 @@ static uint64_t soc_monitor_isr(uint32_t id,
 	cntptval = MONITOR_POLL_SEC * SYS_COUNTER_FREQ_IN_TICKS;
 	arch_timer_set_cntptval(cntptval);
 
-	DBG_INFO("soc=0x%x, sw=0x%x, timeout=%ds, panic=%ds, cpu=0x%x\n",
+	DBG_INFO("soc=0x%x, sw=0x%x, panic=%ds\n",
 		 rockchip_soc_id, rockchip_sw_id,
-		 (wait_cnt * MONITOR_POLL_SEC),
-		 (panic_cnt * MONITOR_POLL_SEC),
-		 cpu_online_mask);
+		 (panic_cnt * MONITOR_POLL_SEC));
 
 	return 0;
 }
