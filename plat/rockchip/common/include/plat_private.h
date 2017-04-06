@@ -102,7 +102,7 @@ void plat_rockchip_gic_cpuif_disable(void);
 void plat_rockchip_gic_pcpu_init(void);
 void plat_rockchip_gic_fiq_disable(uint32_t irq);
 void plat_rockchip_gic_fiq_enable(uint32_t irq, uint8_t target_cpu);
-void plat_rockchip_gic_set_itargetsr(uint8_t irq, uint8_t target_cpu);
+void plat_rockchip_gic_set_itargetsr(uint32_t irq, uint32_t target_cpu);
 unsigned int plat_rockchip_gic_version(void);
 
 void plat_rockchip_pmusram_prepare(void);

@@ -134,7 +134,7 @@ void plat_rockchip_gic_fiq_disable(uint32_t irq)
 	gicd_set_icenabler(PLAT_RK_GICD_BASE, irq);
 }
 
-void plat_rockchip_gic_set_itargetsr(uint8_t irq, uint8_t target_cpu)
+void plat_rockchip_gic_set_itargetsr(uint32_t irq, uint32_t target_cpu)
 {
 	gicd_set_itargetsr(PLAT_RK_GICD_BASE, irq, BIT(target_cpu));
 }

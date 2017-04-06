@@ -132,19 +132,48 @@ void plat_rockchip_gic_pcpu_init(void)
 
 static void gicd_set_itargetsr(uintptr_t base,
 			       unsigned int id,
-			       unsigned int target)
+			       unsigned int mpdir)
 {
-	mmio_write_8(base + GICD_ITARGETSR + id, target & GIC_TARGET_CPU_MASK);
+	unsigned long long aff;
+
+	aff = gicd_irouter_val_from_mpidr(mpdir, 0);
+	gicd_write_irouter(base, id, aff);
+}
+
+static uint32_t plat_mpidr_by_core_pos(uint32_t cpu)
+{
+	uint8_t aff0, aff1;
+	uint32_t mpdir;
+
+	if (cpu >= PLATFORM_CORE_COUNT)
+		return -1;
+
+	/* cluster0 */
+	if (cpu < PLATFORM_CLUSTER0_CORE_COUNT) {
+		aff1 = 0;
+		aff0 = cpu;
+	/* cluster1 */
+	} else {
+		aff1 = 1;
+		aff0 = cpu - PLATFORM_CLUSTER0_CORE_COUNT;
+	}
+
+	mpdir = (aff1 << MPIDR_AFF1_SHIFT) | (aff0 << MPIDR_AFF0_SHIFT);
+
+	return mpdir;
 }
 
 void plat_rockchip_gic_fiq_enable(uint32_t irq, uint8_t target_cpu)
 {
+	uint32_t mpdir;
+
 	if (irq >= MIN_SPI_ID) {
+		mpdir = plat_mpidr_by_core_pos(target_cpu);
 		/* We have an SPI */
 		gicd_clr_igroupr(PLAT_RK_GICD_BASE, irq);
 		gicd_set_ipriorityr(PLAT_RK_GICD_BASE, irq,
 				    GIC_HIGHEST_SEC_PRIORITY);
-		gicd_set_itargetsr(PLAT_RK_GICD_BASE, irq, target_cpu);
+		gicd_set_itargetsr(PLAT_RK_GICD_BASE, irq, mpdir);
 		gicd_set_isenabler(PLAT_RK_GICD_BASE, irq);
 	}
 }
@@ -154,9 +183,13 @@ void plat_rockchip_gic_fiq_disable(uint32_t irq)
 	gicd_set_icenabler(PLAT_RK_GICD_BASE, irq);
 }
 
-void plat_rockchip_gic_set_itargetsr(uint8_t irq, uint8_t target_cpu)
+void plat_rockchip_gic_set_itargetsr(uint32_t irq, uint32_t target_cpu)
 {
-	gicd_set_itargetsr(PLAT_RK_GICD_BASE, irq, target_cpu);
+	uint32_t mpdir;
+
+	mpdir = plat_mpidr_by_core_pos(target_cpu);
+
+	gicd_set_itargetsr(PLAT_RK_GICD_BASE, irq, mpdir);
 }
 
 unsigned int plat_rockchip_gic_version(void)

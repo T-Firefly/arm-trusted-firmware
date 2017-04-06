@@ -371,8 +371,10 @@ static uint64_t uartdbg_oshdl_to_os_smc_handler(void *handle)
 	return SIP_RET_SUCCESS;
 }
 
-static uint64_t uartdbg_sw_cpu_smc_handler(void *handle, uint64_t tgt_cpu)
+static uint64_t uartdbg_sw_cpu_smc_handler(void *handle, uint64_t mpidr)
 {
+	uint32_t tgt_cpu = plat_core_pos_by_mpidr(mpidr);
+
 	if (tgt_cpu >= PLATFORM_CORE_COUNT)
 		return SIP_RET_INVALID_PARAMS;
 
