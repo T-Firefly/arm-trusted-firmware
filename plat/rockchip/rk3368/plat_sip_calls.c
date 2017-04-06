@@ -37,45 +37,6 @@
 #include <runtime_svc.h>
 #include <fiq_dfs.h>
 
-#define ACCESS_REGS_TBL_CN	1
-
-static unsigned long access_regs_table[ACCESS_REGS_TBL_CN] = {
-	0xffb00000, /* efuse */
-};
-
-static int regs_access_check(unsigned long val,
-			     unsigned long addr,
-			     unsigned long ctrl)
-{
-	uint32_t i;
-
-	addr = addr & 0xfffff000;
-	for (i = 0; i < ACCESS_REGS_TBL_CN; i++)
-		if (access_regs_table[i] == addr)
-			return SIP_RET_SUCCESS;
-
-	return SIP_RET_INVALID_ADDRESS;
-}
-
-static uint64_t regs_access(uint64_t val,
-			    uint64_t addr_phy,
-			    uint64_t ctrl,
-			    struct arm_smccc_res *res)
-{
-	int ret = regs_access_check(val, addr_phy, ctrl);
-
-	if (ret)
-		goto exit;
-
-	if (ctrl & SEC_REG_WR)
-		mmio_write_32(addr_phy, val);
-	else
-		res->a1 = mmio_read_32(addr_phy);
-
-exit:
-	return ret;
-}
-
 int dfs_wait_cpus_wfe(void)
 {
 	uint32_t val, tgt_wfe, pd_st, wfe_st, loop = 2500;
@@ -136,10 +97,6 @@ uint64_t rockchip_plat_sip_handler(uint32_t smc_fid,
 	struct arm_smccc_res res = {0};
 
 	switch (smc_fid) {
-	case RK_SIP_ACCESS_REG32:
-		ret = regs_access(x1, x2, x3, &res);
-		SMC_RET2(handle, ret, res.a1);
-
 	case RK_SIP_MCU_EL3FIQ_CFG:
 		ret = mcu_dfs_handler(x1, x2, x3, &res);
 		SMC_RET4(handle, ret, res.a1, res.a2, res.a3);

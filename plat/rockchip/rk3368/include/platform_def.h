@@ -146,4 +146,6 @@
 
 #define PLAT_RK_PRIMARY_CPU	0x0
 
+#define PLAT_SECURE_REGS_TABLE	0xffb00000
+
 #endif /* __PLATFORM_DEF_H__ */
