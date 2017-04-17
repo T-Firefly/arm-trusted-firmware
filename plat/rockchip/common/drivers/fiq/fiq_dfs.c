@@ -40,7 +40,11 @@
 void dcsw_op_level1(uint32_t setway);
 void dcsw_op_level2(uint32_t setway);
 
-#define CPU_STOP_SP_CNT		64
+/*
+ * Should be even number to promise 16 byte aligned,
+ * CPU_STOP_SP_CNT means: size = CPU_STOP_SP_CNT * sizeof(uint64_t)
+ */
+#define CPU_STOP_SP_CNT		(8)
 #define REQ_SGI_EXCEPT_SELF	(1 << 24)
 
 enum governor {
@@ -49,12 +53,22 @@ enum governor {
 	DFS_GOVERNOR_CPU,
 };
 
+#define ROUND2EVEN(n)		(((n) / 2) * 2)
+/* reserve top 16 bytes, must!! */
+#define CPU_STOP_SP_TOP		(ROUND2EVEN(CPU_STOP_SP_CNT) - 2)
+
 static uint32_t dfs_governor;
-static uint32_t volatile mcu_dfs_done_flag;
 static __sramdata volatile uint32_t cpu_stop_flags[PLATFORM_CORE_COUNT];
 static __sramdata __aligned(16)
-		uint32_t cpu_stop_sp[PLATFORM_CORE_COUNT][CPU_STOP_SP_CNT];
+	uint64_t cpu_stop_sp[PLATFORM_CORE_COUNT][ROUND2EVEN(CPU_STOP_SP_CNT)];
 static uint64_t cpu_daif[PLATFORM_CORE_COUNT];
+
+/* must be non-cacheable and volatile !! */
+static uint64_t volatile mcu_dfs_done_flag
+#if USE_COHERENT_MEM
+__section("tzfw_coherent_mem")
+#endif
+;
 
 #pragma weak dfs_wait_cpus_wfe
 
@@ -139,7 +153,7 @@ static uint64_t fiq_cpu_stop_handler(uint32_t id,
 
 	/* set sp to sram */
 	save_sp = rockchip_get_sp();
-	rockchip_set_sp((uint64_t)(&cpu_stop_sp[cpu][CPU_STOP_SP_CNT - 1]));
+	rockchip_set_sp((uint64_t)(&cpu_stop_sp[cpu][CPU_STOP_SP_TOP]));
 
 	/* stop myself, wfe in sram */
 	cpu_stop_for_event(cpu);
@@ -197,10 +211,13 @@ static int mcu_dfs_request_handler(uint32_t irqstat, uint32_t flags,
 	fiq_dfs_flush_l2();
 	fiq_dfs_prefetch(NULL);
 
+#if USE_COHERENT_MEM
 	/* wait MCU dfs done flag. 0: done */
 	while (mcu_dfs_done_flag)
 		;
-
+#else
+	ERROR("%s: USE_COHERENT_MEM is not define!\n", __func__);
+#endif
 	/* active cpus */
 	fiq_dfs_active_cpus();
 
