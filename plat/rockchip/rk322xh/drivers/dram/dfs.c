@@ -607,7 +607,7 @@ static __sramfunc uint32_t set_dpll(unsigned int mhz, uint32_t set)
 		} else if (mhz <= 800) {
 			sram_param.postdiv1 = 3;
 			sram_param.postdiv2 = 1;
-		} else if (mhz <= 1200) {
+		} else if (mhz <= 1600) {
 			sram_param.postdiv1 = 2;
 			sram_param.postdiv2 = 1;
 		} else {
