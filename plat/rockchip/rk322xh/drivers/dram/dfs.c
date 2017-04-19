@@ -1951,10 +1951,10 @@ uint32_t ddr_set_rate(uint32_t page_type)
 			sram_param.set_rate_delay)
 		sram_param.set_rate_delay =
 			(sram_param.set_rate_end - sram_param.set_rate_start);
-	INFO("stop cpu use %ld us, max delay %ld us\n",
+	VERBOSE("stop cpu use %ld us, max delay %ld us\n",
 	     (sram_param.stop_cpu_end - sram_param.stop_cpu_start) / 24,
 	     sram_param.stop_cpu_delay / 24);
-	INFO("ddr scale freq use %ld us, max %ld us\n",
+	VERBOSE("ddr scale freq use %ld us, max %ld us\n",
 	     (sram_param.set_rate_end - sram_param.set_rate_start) / 24,
 	     sram_param.set_rate_delay / 24);
 out:
