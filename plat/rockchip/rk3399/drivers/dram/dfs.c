@@ -1197,6 +1197,16 @@ static void gen_rk3399_enable_training(uint32_t ch_cnt, uint32_t nmhz)
 		}
 }
 
+static void gen_rk3399_disable_training(uint32_t ch_cnt)
+{
+	uint32_t i;
+
+	for (i = 0; i < ch_cnt; i++) {
+		mmio_clrbits_32(CTL_REG(i, 305), 1 << 16);
+		mmio_clrbits_32(CTL_REG(i, 71), 1);
+	}
+}
+
 static void gen_rk3399_ctl_params(struct timing_related_config *timing_config,
 				  struct dram_timing_t *pdram_timing,
 				  uint32_t fn)
@@ -2416,6 +2426,13 @@ void ddr_prepare_for_sys_suspend(void)
 	 * setup for the same frequency.
 	 */
 	prepare_ddr_timing(rk3399_dram_status.boot_freq);
+
+	/*
+	 * This will disable training during a DFS exit.
+	 * It will trigger all training by software for both frequency sets
+	 * on resume.
+	 */
+	gen_rk3399_disable_training(rk3399_dram_status.timing_config.ch_cnt);
 }
 
 void ddr_prepare_for_sys_resume(void)
