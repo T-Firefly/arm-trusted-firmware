@@ -110,7 +110,7 @@ static struct drv_odt_lp_config ddr3_drv_odt_default_config = {
 
 	.ddr3_dll_dis_freq = 300,
 	.phy_dll_dis_freq = 125,
-	.odt_dis_freq = 933,
+	.odt_dis_freq = 666,
 
 	.dram_side_drv = 40,
 	.dram_side_dq_odt = 120,
@@ -1653,14 +1653,19 @@ static void gen_rk3399_phy_dll_bypass(uint32_t mhz, uint32_t ch,
 	uint32_t rddqs_gate_delay, rddqs_latency, total_delay;
 	uint32_t i;
 
-	if (dram_type == DDR3)
+	if (dram_type == DDR3) {
 		total_delay = PI_PAD_DELAY_PS_VALUE;
-	else if (dram_type == LPDDR3)
+		/* total_delay + 0.5tck */
+		total_delay += (50 * 10000) / mhz;
+	} else if (dram_type == LPDDR3) {
 		total_delay = PI_PAD_DELAY_PS_VALUE + 2500;
-	else
+		/* total_delay + 0.55tck */
+		total_delay += (55 * 10000) / mhz;
+	} else {
 		total_delay = PI_PAD_DELAY_PS_VALUE + 1500;
-	/* total_delay + 0.55tck */
-	total_delay +=  (55 * 10000) / mhz;
+		/* total_delay + 0.55tck */
+		total_delay += (55 * 10000) / mhz;
+	}
 	rddqs_latency = total_delay * mhz / 1000000;
 	total_delay -= rddqs_latency * 1000000 / mhz;
 	rddqs_gate_delay = total_delay * 0x200 * mhz / 1000000;
@@ -2269,6 +2274,11 @@ static uint32_t prepare_ddr_timing(uint32_t mhz)
 		rk3399_dram_status.timing_config.dllbp = 1;
 	else
 		rk3399_dram_status.timing_config.dllbp = 0;
+
+	if (mhz < rk3399_dram_status.drv_odt_lp_cfg.odt_dis_freq)
+		rk3399_dram_status.timing_config.odt = 0;
+	else
+		rk3399_dram_status.timing_config.odt = 1;
 
 	if (rk3399_dram_status.timing_config.odt == 1)
 		gen_rk3399_set_odt(1);

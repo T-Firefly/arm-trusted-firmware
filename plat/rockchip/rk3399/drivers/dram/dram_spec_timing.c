@@ -285,6 +285,10 @@ static void ddr3_get_parameter(struct timing_related_config *timing_config,
 	else
 		pdram_timing->mr[1] = tmp | DDR3_RTT_NOM_DIS;
 
+	/* dll bypss*/
+	if (nmhz < 300)
+		pdram_timing->mr[1] = pdram_timing->mr[1] | 0x1;
+
 	pdram_timing->mr[2] = DDR3_MR2_CWL(pdram_timing->cwl);
 	pdram_timing->mr[3] = 0;
 
