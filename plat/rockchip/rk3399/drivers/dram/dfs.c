@@ -87,6 +87,7 @@ struct rk3399_saved_status {
 static struct rk3399_dram_status rk3399_dram_status;
 static struct rk3399_saved_status rk3399_suspend_status;
 static uint32_t wrdqs_delay_val[2][2][4];
+static uint32_t rddqs_delay_ps;
 
 static struct ddr_dts_config_timing dts_parameter = {
 	.available = 0
@@ -1840,7 +1841,7 @@ static void gen_rk3399_phy_params(struct timing_related_config *timing_config,
 		mmio_clrsetbits_32(PHY_REG(i, 394), 0xf, tmp);
 		/* PHY_GTLVL_LAT_ADJ_START */
 		/* DENALI_PHY_80/208/336/464 4bits offset_16 */
-		tmp = delay_frac_ps / 1000;
+		tmp = rddqs_delay_ps / (1000000 / pdram_timing->mhz) + 2;
 		mmio_clrsetbits_32(PHY_REG(i, 80), 0xf << 16, tmp << 16);
 		mmio_clrsetbits_32(PHY_REG(i, 208), 0xf << 16, tmp << 16);
 		mmio_clrsetbits_32(PHY_REG(i, 336), 0xf << 16, tmp << 16);
@@ -2098,6 +2099,7 @@ void dram_dfs_init(void)
 {
 	uint32_t trefi0, trefi1, boot_freq;
 	uint32_t i;
+	uint32_t rddqs_adjust, rddqs_slave;
 	struct ddr_dts_config_timing *dts_timing = &dts_parameter;
 
 	/* get sdram config for os reg */
@@ -2167,6 +2169,21 @@ void dram_dfs_init(void)
 	gen_rk3399_set_ds_odt(&rk3399_dram_status.timing_config,
 			&rk3399_dram_status.drv_odt_lp_cfg);
 	dram_low_power_config(&rk3399_dram_status.drv_odt_lp_cfg);
+
+	if (((mmio_read_32(PHY_REG(0, 86)) >> 8) & 0xf) != 0xc) {
+		mmio_clrsetbits_32(PHY_REG(0, 896), (0x3 << 8),
+				   rk3399_dram_status.current_index << 8);
+		rddqs_slave = (mmio_read_32(PHY_REG(0, 77)) >> 16) & 0x3ff;
+		rddqs_slave = rddqs_slave * 1000000 / boot_freq / 512;
+
+		rddqs_adjust = mmio_read_32(PHY_REG(0, 78)) & 0xf;
+		rddqs_adjust = rddqs_adjust * 1000000 / boot_freq;
+
+		rddqs_delay_ps = rddqs_slave + rddqs_adjust
+				 - (1000000 / boot_freq / 2);
+	} else {
+		rddqs_delay_ps = 3500;
+	}
 }
 
 /*
