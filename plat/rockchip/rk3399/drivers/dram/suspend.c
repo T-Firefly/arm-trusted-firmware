@@ -183,7 +183,7 @@ static __sramfunc void select_per_cs_training_index(uint32_t ch, uint32_t rank)
 		set_cs_training_index(ch, rank);
 }
 
-static void override_write_leveling_value(uint32_t ch)
+static __sramfunc void override_write_leveling_value(uint32_t ch)
 {
 	uint32_t byte;
 
@@ -609,10 +609,7 @@ static __sramfunc int dram_switch_to_next_index(
 static __sramfunc int pctl_start(uint32_t channel_mask,
 		struct rk3399_sdram_params *sdram_params)
 {
-	uint32_t count;
-
-	mmio_setbits_32(CTL_REG(0, 68), PWRUP_SREFRESH_EXIT);
-	mmio_setbits_32(CTL_REG(1, 68), PWRUP_SREFRESH_EXIT);
+	uint32_t count, byte, tmp;
 
 	/* need de-access IO retention before controller START */
 	if (channel_mask & (1 << 0))
@@ -621,12 +618,18 @@ static __sramfunc int pctl_start(uint32_t channel_mask,
 		mmio_setbits_32(PMU_BASE + PMU_PWRMODE_CON, (1 << 23));
 
 	/* PHY_DLL_RST_EN */
-	if (channel_mask & (1 << 0))
+	if (channel_mask & (1 << 0)) {
+		mmio_write_32(GRF_BASE + GRF_DDRC0_CON0,
+			      0x01000000);
 		mmio_clrsetbits_32(PHY_REG(0, 957), 0x3 << 24,
 				   0x2 << 24);
-	if (channel_mask & (1 << 1))
+	}
+	if (channel_mask & (1 << 1)) {
+		mmio_write_32(GRF_BASE + GRF_DDRC1_CON0,
+			      0x01000000);
 		mmio_clrsetbits_32(PHY_REG(1, 957), 0x3 << 24,
 				   0x2 << 24);
+	}
 
 	/* check ERROR bit */
 	if (channel_mask & (1 << 0)) {
@@ -640,6 +643,24 @@ static __sramfunc int pctl_start(uint32_t channel_mask,
 			count++;
 		}
 
+		mmio_write_32(GRF_BASE + GRF_DDRC0_CON0,
+			      0x01000100);
+		for (byte = 0; byte < 4; byte++)	{
+			tmp = 0x820;
+			mmio_write_32(PHY_REG(0, 53 + (128 * byte)),
+				      (tmp << 16) | tmp);
+			mmio_write_32(PHY_REG(0, 54 + (128 * byte)),
+				      (tmp << 16) | tmp);
+			mmio_write_32(PHY_REG(0, 55 + (128 * byte)),
+				      (tmp << 16) | tmp);
+			mmio_write_32(PHY_REG(0, 56 + (128 * byte)),
+				      (tmp << 16) | tmp);
+			mmio_write_32(PHY_REG(0, 57 + (128 * byte)),
+				      (tmp << 16) | tmp);
+			mmio_clrsetbits_32(PHY_REG(0, 58 + (128 * byte)),
+					   0xffff, tmp);
+		}
+
 		mmio_clrbits_32(CTL_REG(0, 68), PWRUP_SREFRESH_EXIT);
 	}
 	if (channel_mask & (1 << 1)) {
@@ -651,6 +672,24 @@ static __sramfunc int pctl_start(uint32_t channel_mask,
 
 			sram_udelay(100);
 			count++;
+		}
+
+		mmio_write_32(GRF_BASE + GRF_DDRC1_CON0,
+			      0x01000100);
+		for (byte = 0; byte < 4; byte++)	{
+			tmp = 0x820;
+			mmio_write_32(PHY_REG(1, 53 + (128 * byte)),
+				      (tmp << 16) | tmp);
+			mmio_write_32(PHY_REG(1, 54 + (128 * byte)),
+				      (tmp << 16) | tmp);
+			mmio_write_32(PHY_REG(1, 55 + (128 * byte)),
+				      (tmp << 16) | tmp);
+			mmio_write_32(PHY_REG(1, 56 + (128 * byte)),
+				      (tmp << 16) | tmp);
+			mmio_write_32(PHY_REG(1, 57 + (128 * byte)),
+				      (tmp << 16) | tmp);
+			mmio_clrsetbits_32(PHY_REG(1, 58 + (128 * byte)),
+					   0xffff, tmp);
 		}
 
 		mmio_clrbits_32(CTL_REG(1, 68), PWRUP_SREFRESH_EXIT);
