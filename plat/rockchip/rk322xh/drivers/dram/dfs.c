@@ -2032,3 +2032,73 @@ uint32_t ddr_get_version(void)
 	return 0x100;
 }
 
+/*****************************************************************************
+ * for fiq cpu stop
+ *****************************************************************************/
+static uint32_t fiq_dfs_get_poweroff_cpus_msk(void)
+{
+	uint32_t pd_reg, apm_reg;
+	uint32_t pd_en_bit, apm_en_bit, apm_off_bit;
+	uint32_t off_msk, i;
+
+	pd_reg = mmio_read_32(PMU_BASE + PMU_PWRDN_CON);
+
+	off_msk = 0;
+
+	for (i = 0; i < PLATFORM_CORE_COUNT; i++) {
+		apm_reg = mmio_read_32(PMU_BASE + PMU_CPUAPM_CON(i));
+		pd_en_bit = pd_reg & BIT(i);
+
+		apm_en_bit = apm_reg & BIT(core_pm_en);
+		apm_off_bit = apm_reg & BIT(core_pm_int_wakeup_en);
+
+		if (pd_en_bit && !apm_en_bit) {
+			off_msk |= BIT(i);
+		} else if (!pd_en_bit && apm_en_bit) {
+			if (!apm_off_bit)
+				off_msk |= BIT(i);
+		} else if (pd_en_bit && apm_en_bit) {
+			ERROR("%s: %x,%x", __func__, pd_reg, apm_reg);
+		}
+	}
+
+	return off_msk;
+}
+
+int fiq_dfs_wait_cpus_wfe(void)
+{
+	int i, loop = 1000 * 1000;
+	uint32_t pwroff_cpus, wfe_st, tgt_wfe;
+	uint32_t cpu_cur = plat_my_core_pos();
+	/*
+	* The system ensure that the cpu is not up again.
+	*/
+	pwroff_cpus = fiq_dfs_get_poweroff_cpus_msk();
+
+	/*
+	* The online cpu is in stop status
+	*/
+	for (i = 0; i < PLATFORM_CORE_COUNT; i++) {
+		if (i == cpu_cur)
+			continue;
+		if (pwroff_cpus & BIT(i))
+			continue;
+		if (wait_cpu_stop_st_timeout(i))
+			return -1;
+	}
+
+	tgt_wfe = (~pwroff_cpus) & CPUS_PWRDM_MSK;
+	tgt_wfe &= (~BIT(cpu_cur));
+
+	do {
+		wfe_st = mmio_read_32(GRF_BASE + GRF_CPU_STATUS(1)) &
+				      CPUS_PWRDM_MSK;
+		udelay(1);
+		loop--;
+	} while ((wfe_st & tgt_wfe) != tgt_wfe && loop > 0);
+
+	if (loop <= 0)
+		return -1;
+	else
+		return 0;
+}

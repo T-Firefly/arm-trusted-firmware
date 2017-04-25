@@ -35,34 +35,19 @@
 #include <plat_private.h>
 #include <rockchip_exceptions.h>
 #include <rockchip_sip_svc.h>
+#include <delay_timer.h>
 #include "fiq_dfs.h"
 
 void dcsw_op_level1(uint32_t setway);
 void dcsw_op_level2(uint32_t setway);
 
-/*
- * Should be even number to promise 16 byte aligned,
- * CPU_STOP_SP_CNT means: size = CPU_STOP_SP_CNT * sizeof(uint64_t)
- */
-#define CPU_STOP_SP_CNT		(8)
-#define REQ_SGI_EXCEPT_SELF	(1 << 24)
-
-enum governor {
-	DFS_GOVERNOR_INVAL = 0,
-	DFS_GOVERNOR_MCU,
-	DFS_GOVERNOR_CPU,
-};
-
-#define ROUND2EVEN(n)		(((n) / 2) * 2)
-/* reserve top 16 bytes, must!! */
-#define CPU_STOP_SP_TOP		(ROUND2EVEN(CPU_STOP_SP_CNT) - 2)
+static __sramdata volatile uint32_t cpu_stop_trigger;
+static __sramdata volatile uint32_t cpu_stop_st[PLATFORM_CORE_COUNT];
+static __sramdata __aligned(16)
+		uint64_t cpu_stop_sp[PLATFORM_CORE_COUNT][CPU_STOP_SP_CNT];
 
 static uint32_t dfs_governor;
-static __sramdata volatile uint32_t cpu_stop_flags[PLATFORM_CORE_COUNT];
-static __sramdata __aligned(16)
-	uint64_t cpu_stop_sp[PLATFORM_CORE_COUNT][ROUND2EVEN(CPU_STOP_SP_CNT)];
 static uint64_t cpu_daif[PLATFORM_CORE_COUNT];
-
 /* must be non-cacheable and volatile !! */
 static uint64_t volatile mcu_dfs_done_flag
 #if USE_COHERENT_MEM
@@ -70,9 +55,9 @@ __section("tzfw_coherent_mem")
 #endif
 ;
 
-#pragma weak dfs_wait_cpus_wfe
+#pragma weak fiq_dfs_wait_cpus_wfe
 
-int dfs_wait_cpus_wfe(void)
+int fiq_dfs_wait_cpus_wfe(void)
 {
 	ERROR("%s not implement by platform! panic\n", __func__);
 	panic();
@@ -122,14 +107,35 @@ void fiq_dfs_prefetch(void (*prefetch_fn)(void))
 	dsb();
 }
 
+int wait_cpu_stop_st_timeout(uint32_t cpu)
+{
+	uint32_t loop = 1000 * 1000; /* wait 1s */
+
+	while ((cpu_stop_st[cpu] != CPUS_STOP_ST_IN) && loop > 0) {
+		udelay(1);
+		loop--;
+	}
+
+	if (cpu_stop_st[cpu] == CPUS_STOP_ST_IN)
+		return 0;
+
+	ERROR("%s:The cpu_stop_st is error! %d:%x\n",
+	      __func__, cpu, cpu_stop_st[cpu]);
+	return -1;
+}
+
 __sramfunc void cpu_stop_for_event(uint32_t cpu)
 {
-	/* cpu_stop_flags[cpu] must be prefetched !! */
-	while (cpu_stop_flags[cpu]) {
+	cpu_stop_st[cpu] = CPUS_STOP_ST_IN;
+
+	/* cpu_stop_trigger[cpu] must be prefetched !! */
+	while (cpu_stop_trigger == CPUS_STOP_EN) {
 		dsb();
 		isb();
 		__asm volatile("wfe");
 	}
+
+	cpu_stop_st[cpu] = CPUS_STOP_ST_OUT;
 }
 
 static uint64_t fiq_cpu_stop_handler(uint32_t id,
@@ -147,13 +153,18 @@ static uint64_t fiq_cpu_stop_handler(uint32_t id,
 	/* flush dcache */
 	dcsw_op_level1(DCCISW);
 	dcsw_op_level2(DCCISW);
-
 	/* necessary! invalidate tlb of el3 */
 	tlbialle3();
-
+	dsb();
+	isb();
 	/* set sp to sram */
 	save_sp = rockchip_get_sp();
+
+	assert(!(save_sp & 0xf));
+
 	rockchip_set_sp((uint64_t)(&cpu_stop_sp[cpu][CPU_STOP_SP_TOP]));
+	dsb();
+	isb();
 
 	/* stop myself, wfe in sram */
 	cpu_stop_for_event(cpu);
@@ -172,13 +183,21 @@ static void gic_set_sgir_except_self(size_t it)
 	gicd_write_sgir(PLAT_RK_GICD_BASE, REQ_SGI_EXCEPT_SELF | it);
 }
 
-int fiq_dfs_stop_cpus(void)
+void fiq_cpu_stop_info_init(void)
 {
-	int i, ret = 0;
+	int i;
 
 	for (i = 0; i < PLATFORM_CORE_COUNT; i++)
-		cpu_stop_flags[i] = 1;
+		cpu_stop_st[i] = CPUS_STOP_ST_OUT;
 
+	cpu_stop_trigger = CPUS_STOP_DIS;
+}
+
+int fiq_dfs_stop_cpus(void)
+{
+	int ret = 0;
+
+	cpu_stop_trigger = CPUS_STOP_EN;
 	dsb();
 
 	/* send sgi to notify other cpus into wfe */
@@ -186,19 +205,15 @@ int fiq_dfs_stop_cpus(void)
 
 	/* wait other cpus all into wfe, return 0 on success */
 	if (dfs_governor == DFS_GOVERNOR_CPU)
-		ret = dfs_wait_cpus_wfe();
+		ret = fiq_dfs_wait_cpus_wfe();
 
 	return ret;
 }
 
 void fiq_dfs_active_cpus(void)
 {
-	uint32_t i;
-
-	for (i = 0; i < PLATFORM_CORE_COUNT; i++)
-		cpu_stop_flags[i] = 0;
+	cpu_stop_trigger = CPUS_STOP_DIS;
 	dsb();
-
 	__asm("sev");
 }
 
@@ -234,6 +249,7 @@ int cpu_dfs_governor_register(void)
 		return ret;
 
 	dfs_governor = DFS_GOVERNOR_CPU;
+	fiq_cpu_stop_info_init();
 	return 0;
 }
 
@@ -244,7 +260,8 @@ uint64_t mcu_dfs_governor_register(uint32_t dfs_irq, uint32_t tgt_cpu,
 
 	/* register MCU fiq handler, that is: mcu_dfs_request_handler() */
 	err = register_secfiq_handler(dfs_irq,
-		(interrupt_type_handler_t)mcu_dfs_request_handler);
+				      (interrupt_type_handler_t)
+				      mcu_dfs_request_handler);
 	if (err)
 		return err;
 
@@ -266,7 +283,7 @@ uint64_t mcu_dfs_governor_register(uint32_t dfs_irq, uint32_t tgt_cpu,
 #if 0
 demo(should check both power down and wfe state on other cpus):
 
-static int dfs_wait_cpus_wfe(void)
+static int fiq_dfs_wait_cpus_wfe(void)
 {
 	uint32_t tgt_wfe, pd_st, wfe_st, loop = 2500;
 	uint32_t wfe_reg = GRF_BASE + GRF_CPU_STATUS(1), wfe_msk = 0x0f;

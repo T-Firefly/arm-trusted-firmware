@@ -125,9 +125,14 @@ enum pmu_sft_con {
 	pmu_sft_ret_cfg,
 };
 
-#define CKECK_WFE_MSK		0x1
-#define CKECK_WFI_MSK		0x10
-#define CKECK_WFEI_MSK		0x11
+#define CPUS_PWRDM_MSK		(0xf)
+
+#define GRF_CPUWFI_OFFSET	(4)
+#define GRF_CPUWFE_OFFSET	(0)
+
+#define CKECK_WFE_MSK		BIT(GRF_CPUWFE_OFFSET)
+#define CKECK_WFI_MSK		BIT(GRF_CPUWFI_OFFSET)
+#define CKECK_WFEI_MSK		(CKECK_WFE_MSK | CKECK_WFE_MSK)
 
 #define PD_CTR_LOOP		500
 #define CHK_CPU_LOOP		500

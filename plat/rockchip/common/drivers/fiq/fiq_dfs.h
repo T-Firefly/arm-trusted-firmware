@@ -31,6 +31,32 @@
 #include <stdint.h>
 #include <rockchip_sip_svc.h>
 
+#define ROUND2EVEN(n)		(((n) / 2) * 2)
+/*
+ * Should be even number to promise 16 byte aligned,
+ * CPU_STOP_SP_CNT means: size = CPU_STOP_SP_CNT * sizeof(uint64_t)
+ */
+#define CPU_STOP_SP_CNT		ROUND2EVEN(8)
+
+/* reserve top 16 bytes, must!! */
+#define CPU_STOP_SP_TOP		(ROUND2EVEN(CPU_STOP_SP_CNT) - 2)
+
+#define REQ_SGI_EXCEPT_SELF	BIT(24)
+
+enum governor {
+	DFS_GOVERNOR_INVAL = 0,
+	DFS_GOVERNOR_MCU,
+	DFS_GOVERNOR_CPU,
+};
+
+#define CPUS_STOP_ST_IN		0xfedcba5a
+#define CPUS_STOP_ST_OUT	0xabcdefa5
+#define CPUS_STOP_EN		0xabcdefa5
+#define CPUS_STOP_DIS		0xfedcba5a
+
+void dcsw_op_level1(uint32_t setway);
+void dcsw_op_level2(uint32_t setway);
+
 /*
  *		How to use these interfaces ?
  *
@@ -61,6 +87,8 @@ int cpu_dfs_governor_register(void);
 /* MCU dcf */
 uint64_t mcu_dfs_governor_register(uint32_t dfs_irq, uint32_t tgt_cpu,
 				   struct arm_smccc_res *res);
+int wait_cpu_stop_st_timeout(uint32_t cpu);
+int fiq_dfs_wait_cpus_wfe(void);
 
 static inline uint64_t rockchip_get_sp(void)
 {
