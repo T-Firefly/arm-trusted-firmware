@@ -40,6 +40,7 @@ PLAT_INCLUDES           :=	-I${RK_PLAT_COMMON}/				\
                                 -I${RK_PLAT_SOC}/drivers/pmu/                   \
                                 -I${RK_PLAT_SOC}/drivers/soc/                   \
                                 -I${RK_PLAT_SOC}/drivers/dram/			\
+				-I${RK_PLAT_COMMON}/drivers/fiq/                \
 				-Idrivers/arm/gic/common/			\
 				-Idrivers/arm/gic/v3/				\
                                 -I${RK_PLAT_SOC}/include/                       \
@@ -76,6 +77,7 @@ BL31_SOURCES            +=      ${RK_GIC_SOURCES}                               
                                 ${RK_PLAT_COMMON}/plat_topology.c               \
                                 ${RK_PLAT_COMMON}/aarch64/platform_common.c        \
 				${RK_PLAT_COMMON}/rockchip_sip_svc.c		\
+				${RK_PLAT_COMMON}/drivers/fiq/fiq_dfs.c         \
 				${RK_PLAT_SOC}/plat_sip_calls.c			\
 				${RK_PLAT_SOC}/drivers/gpio/rk3399_gpio.c	\
                                 ${RK_PLAT_SOC}/drivers/pmu/pmu.c                \

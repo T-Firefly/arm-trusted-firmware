@@ -176,6 +176,9 @@
 #define ARM_IRQ_SEC_SGI_5		13
 #define ARM_IRQ_SEC_SGI_6		14
 #define ARM_IRQ_SEC_SGI_7		15
+
+#define RK_IRQ_SEC_SGI_6		ARM_IRQ_SEC_SGI_6
+
 /*
  * Define a list of Group 1 Secure and Group 0 interrupts as per GICv3
  * terminology. On a GICv2 system or mode, the lists will be merged and treated
