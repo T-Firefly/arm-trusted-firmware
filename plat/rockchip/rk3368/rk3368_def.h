@@ -34,6 +34,8 @@
 /* Special value used to verify platform parameters from BL2 to BL3-1 */
 #define RK_BL31_PLAT_PARAM_VAL	0x0f1e2d3c4b5a6978ULL
 
+#define SIZE_K(n)		((n) * 1024)
+
 #define CCI400_BASE		0xffb90000
 #define CCI400_SIZE		0x10000
 
@@ -125,5 +127,9 @@
  * as Group 0 interrupts.
  */
 #define RK_G1S_IRQS		RK_IRQ_SEC_PHY_TIMER, RK_IRQ_SEC_SGI_6
+
+#define SHARE_MEM_BASE          0x100000/* [1MB, 1MB+60K]*/
+#define SHARE_MEM_PAGE_NUM      15
+#define SHARE_MEM_SIZE          SIZE_K(SHARE_MEM_PAGE_NUM * 4)
 
 #endif /* __PLAT_DEF_H__ */
