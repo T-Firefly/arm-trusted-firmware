@@ -84,6 +84,15 @@ static int mcu_dfs_handler(uint64_t func,
 	return ret;
 }
 
+#pragma weak suspend_mode_handler
+
+int suspend_mode_handler(uint64_t mode_id,
+			 uint64_t config1,
+			 uint64_t config2)
+{
+	return 0;
+}
+
 uint64_t rockchip_plat_sip_handler(uint32_t smc_fid,
 				   uint64_t x1,
 				   uint64_t x2,
@@ -100,6 +109,10 @@ uint64_t rockchip_plat_sip_handler(uint32_t smc_fid,
 	case RK_SIP_MCU_EL3FIQ_CFG:
 		ret = mcu_dfs_handler(x1, x2, x3, &res);
 		SMC_RET4(handle, ret, res.a1, res.a2, res.a3);
+
+	case RK_SIP_SUSPEND_MODE32:
+		ret = suspend_mode_handler(x1, x2, x3);
+		SMC_RET1(handle, ret);
 
 	default:
 		ERROR("%s: unhandled SMC (0x%x)\n", __func__, smc_fid);

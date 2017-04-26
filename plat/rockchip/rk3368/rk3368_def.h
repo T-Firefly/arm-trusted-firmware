@@ -61,10 +61,8 @@
 #define SRAM_BASE		0xff8c0000
 #define SRAM_SIZE		0x10000
 
-#define UART_DBG_BASE		0xff1b0000
+#define UART_DBG_BASE		0xff690000
 #define UART_DBG_SIZE		0x10000
-
-#define CRU_BASE		0xff760000
 
 #define PMUSRAM_BASE            0xff720000
 #define PMUSRAM_SIZE            0x10000
@@ -78,6 +76,40 @@
 
 #define SERVICE_BUS_BASE	0xffac0000
 #define SERVICE_BUS_SISE	0x50000
+
+#define GRF_SOC_CON(n)		(0x400 + (n) * 4)
+
+#define I2C_PMU_BASE		0xff650000
+#define I2C_AUDIO_BASE		0xff660000
+
+#define RK_STIME_BASE		STIME_BASE
+#define RK_TIMER0_BASE		0xff810000
+#define RK_TIMER1_BASE		0xff820000
+#define RK_UART_PORT		2
+
+#define ISRAM_BASE		0xff8c0000
+#define ISRAM_SIZE		0x10000
+
+#define TFW_DATA_BASE		(TZRAM_BASE + 0x30000)
+#define TFW_DATA_SIZE		(5 * 64 * 1024)
+
+#define RK_IMEM_BASE		ISRAM_BASE
+#define RK_IMEM_SIZE		(1024 * 64)
+
+#define RK_IMEM_DDRCODE_BASE	(RK_IMEM_BASE + 32 * 1024)
+#define RK_IMEM_DDRCODE_LENGTH	(32 * 1024)
+
+#define GPIO3_BASE		0xff7a0000
+#define GPIO2_BASE		0xff790000
+#define GPIO1_BASE		0xff780000
+#define GPIO0_BASE		0xff750000
+#define GPIO0_SIZE		0x10000
+#define PMU_GPIO0_BASE		GPIO0_BASE
+
+#define AXI_GPU_BASE		0xffaf0000
+#define AXI_VIDEO_BASE		0xffae0000
+#define AXI_VIO_BASE		0xffad0000
+#define AXI_PERI_BASE		0xffab0000
 
 #define COLD_BOOT_BASE		0xffff0000
 /**************************************************************************

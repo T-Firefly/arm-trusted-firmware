@@ -69,12 +69,17 @@ extern uint32_t __sram_incbin_start, __sram_incbin_end;
 #endif
 
 #ifndef BITS_SHIFT
-#define BITS_SHIFT(bits, shift)	(bits << (shift))
+#define BITS_SHIFT(bits, shift)	((bits) << (shift))
+#endif
+
+#ifndef BITS_WMSK
+#define BITS_WMSK(msk, shift) \
+		((msk) << ((shift) + REG_MSK_SHIFT))
 #endif
 
 #ifndef BITS_WITH_WMASK
 #define BITS_WITH_WMASK(bits, msk, shift)\
-	(BITS_SHIFT(bits, shift) | BITS_SHIFT(msk, (shift + REG_MSK_SHIFT)))
+	(BITS_SHIFT(bits, shift) | BITS_SHIFT(msk, ((shift) + REG_MSK_SHIFT)))
 #endif
 
 /******************************************************************************

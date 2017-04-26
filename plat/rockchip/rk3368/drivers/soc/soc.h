@@ -37,9 +37,13 @@ enum plls_id {
 	END_PLL_ID,
 };
 
-/*****************************************************************************
+/***************************************************************************
  * secure timer
- *****************************************************************************/
+ ***************************************************************************/
+#define RK_NTIMES 2
+#define RK_NTIME_CHS 6
+#define RK_STIME_CHS 2
+
 #define TIMER_LOADE_COUNT0	0x00
 #define TIMER_LOADE_COUNT1	0x04
 #define TIMER_CURRENT_VALUE0	0x08
@@ -54,18 +58,18 @@ enum plls_id {
 #define CYCL_24M_CNT_US(us)	(24 * us)
 #define CYCL_24M_CNT_MS(ms)	(ms * CYCL_24M_CNT_US(1000))
 
-/*****************************************************************************
+/************************************************************************
  * sgrf reg, offset
- *****************************************************************************/
+ ************************************************************************/
 #define SGRF_SOC_CON(n)		(0x0 + (n) * 4)
 #define SGRF_BUSDMAC_CON(n)	(0x100 + (n) * 4)
 
 #define SGRF_SOC_CON_NS		0xffff0000
 
-/*****************************************************************************
+/************************************************************************
  * con6[2]pmusram is security.
  * con6[6]stimer is security.
- *****************************************************************************/
+ ************************************************************************/
 #define PMUSRAM_S_SHIFT		2
 #define PMUSRAM_S		1
 #define STIMER_S_SHIFT		6
@@ -83,9 +87,9 @@ enum plls_id {
 #define CPU_BOOT_ADDR_WMASK	0xffff0000
 #define CPU_BOOT_ADDR_ALIGN	16
 
-/*****************************************************************************
+/***************************************************************************
  * cru reg, offset
- *****************************************************************************/
+ ***************************************************************************/
 #define CRU_SOFTRST_CON		0x300
 #define CRU_SOFTRSTS_CON(n)	(CRU_SOFTRST_CON + ((n) * 4))
 #define CRU_SOFTRSTS_CON_CNT	15
@@ -120,36 +124,27 @@ enum plls_id {
 /***************************************************************************
  * pll
  ***************************************************************************/
-#define PLL_PWR_DN_MSK		(0x1 << 1)
-#define PLL_PWR_DN		REG_WMSK_BITS(1, 1, 0x1)
-#define PLL_PWR_ON		REG_WMSK_BITS(0, 1, 0x1)
-#define PLL_RESET		REG_WMSK_BITS(1, 5, 0x1)
-#define PLL_RESET_RESUME	REG_WMSK_BITS(0, 5, 0x1)
-#define PLL_BYPASS_MSK		(0x1 << 0)
-#define PLL_BYPASS_W_MSK	(PLL_BYPASS_MSK << 16)
-#define PLL_BYPASS		REG_WMSK_BITS(1, 0, 0x1)
-#define PLL_NO_BYPASS		REG_WMSK_BITS(0, 0, 0x1)
+#define PLL_PWR_DN_MSK		BIT(1)
+#define PLL_LOCK_MSK		BIT(31)
+#define PLL_PWR_DN		BITS_WITH_WMASK(1, 0x1, 1)
+#define PLL_PWR_ON		BITS_WITH_WMASK(0, 0x1, 1)
+#define PLL_RESET		BITS_WITH_WMASK(1, 0x1, 5)
+#define PLL_RESET_RESUME	BITS_WITH_WMASK(0, 0x1, 5)
+#define PLL_BYPASS_MSK		BIT(0)
+#define PLL_BYPASS_W_MSK	BITS_WMSK(PLL_BYPASS_MSK, 0)
+#define PLL_BYPASS		BITS_WITH_WMASK(1, 0x1, 0)
+#define PLL_NO_BYPASS		BITS_WITH_WMASK(0, 0x1, 0)
 #define PLL_MODE_SHIFT		8
 #define PLL_MODE_MSK		0x3
-#define PLLS_MODE_WMASK		(PLL_MODE_MSK << (16 + PLL_MODE_SHIFT))
+#define PLLS_MODE_WMASK		BITS_WMSK(PLL_MODE_MSK, PLL_MODE_SHIFT)
 #define PLL_SLOW		0x0
 #define PLL_NORM		0x1
 #define PLL_DEEP		0x2
-#define PLL_SLOW_BITS		REG_WMSK_BITS(PLL_SLOW, 8, 0x3)
-#define PLL_NORM_BITS		REG_WMSK_BITS(PLL_NORM, 8, 0x3)
-#define PLL_DEEP_BITS		REG_WMSK_BITS(PLL_DEEP, 8, 0x3)
+#define PLL_SLOW_BITS		BITS_WITH_WMASK(PLL_SLOW, 0x3, 8)
+#define PLL_NORM_BITS		BITS_WITH_WMASK(PLL_NORM, 0x3, 8)
+#define PLL_DEEP_BITS		BITS_WITH_WMASK(PLL_DEEP, 0x3, 8)
 
 #define PLL_CONS(id, i)		((id) * 0x10 + ((i) * 4))
-
-#define REG_W_MSK(bits_shift, msk) \
-		((msk) << ((bits_shift) + 16))
-#define REG_VAL_CLRBITS(val, bits_shift, msk) \
-		(val & (~(msk << bits_shift)))
-#define REG_SET_BITS(bits, bits_shift, msk) \
-		(((bits) & (msk)) << (bits_shift))
-#define REG_WMSK_BITS(bits, bits_shift, msk) \
-		(REG_W_MSK(bits_shift, msk) | \
-		REG_SET_BITS(bits, bits_shift, msk))
 
 #define regs_updata_bit_set(addr, shift) \
 		regs_updata_bits((addr), 0x1, 0x1, (shift))
@@ -158,7 +153,133 @@ enum plls_id {
 
 void regs_updata_bits(uintptr_t addr, uint32_t val,
 		      uint32_t mask, uint32_t shift);
-void soc_sleep_config(void);
-void pm_plls_resume(void);
+
+/************************* gpio **********************************/
+#define RKPM_GPIO_INPUT		(0)
+#define RKPM_GPIO_OUTPUT	(1)
+
+#define RKPM_GPIO_OUT_L		(0)
+#define RKPM_GPIO_OUT_H		(1)
+
+#define RKPM_GPIO_PULL_Z	(0)
+#define RKPM_GPIO_PULL_UP	(0x1)
+#define RKPM_GPIO_PULL_DN	(0x2)
+#define RKPM_GPIO_PULL_RPTR	(0x3)
+
+#define PIN_PORT(a)		((a >> 12) & 0xf)
+#define PIN_BANK(a)		((a >> 8) & 0xf)
+#define PIN_IO(a)		((a >> 4) & 0xf)
+#define PIN_FUN(a)		((a) & 0xf)
+
+#define PARAM_PIN(port, bank, io, fun) \
+	((port << 12) | ((bank) << 8) | (io << 4) | (fun << 0))
+
+/* GPIO control registers */
+#define GPIO_SWPORT_DR		0x00
+#define GPIO_SWPORT_DDR		0x04
+#define GPIO_INTEN		0x30
+#define GPIO_INTMASK		0x34
+#define GPIO_INTTYPE_LEVEL	0x38
+#define GPIO_INT_POLARITY	0x3c
+#define GPIO_INT_STATUS		0x40
+#define GPIO_INT_RAWSTATUS	0x44
+#define GPIO_DEBOUNCE		0x48
+#define GPIO_PORTS_EOI		0x4c
+#define GPIO_EXT_PORT		0x50
+#define GPIO_LS_SYNC		0x60
+
+/************************************************************************
+ *     TFW_DATA_BASE define
+ ***********************************************************************/
+/* base from TFW_DATA_BASE*/
+
+#define TFW_DATA_MCUOS_BASE	(TFW_DATA_BASE)
+#define TFW_DATA_MCUOS_SIZE	(64 * 1024)
+
+#define TFW_DATA_IMEMBANK_BASE	(TFW_DATA_MCUOS_BASE + TFW_DATA_MCUOS_SIZE)
+#define TFW_DATA_IMEMBANK_SIZE	(64 * 1024)
+
+#define TFW_DATA_FIQ_BASE \
+		(TFW_DATA_IMEMBANK_BASE + TFW_DATA_IMEMBANK_SIZE)
+#define TFW_DATA_FIQ_SIZE	(8 * 1024)
+
+#define TFW_DATA_MCUDATA_BASE	(TFW_DATA_FIQ_BASE + TFW_DATA_FIQ_SIZE)
+#define TFW_DATA_MCUDATA_SIZE	(4 * 1024)
+
+/****************************************************
+ * pmu con, reg
+ ***************************************************/
+#define PM_PWRDM_CPUS_MSK	(0x1ef)
+#define PM_PWRDM_SCUS_MSK	(0x210)
+
+#define PM_PWRDM_CPUSL_MSK	(0xf)
+#define PM_PWRDM_CPUSB_MSK	(0xf << 5)
+
+#define PMU_CPU_WFE_MSK		(0x1)
+#define PMU_CPU_WFI_MSK		(0x10)
+
+#define CRU_GATEID_CONS(ID)	(CRU_CLKGATE_CON + (ID / 16) * 4)
+#define CRU_UNGATING_OPS(id) \
+	mmio_write_32(CRU_BASE + CRU_GATEID_CONS((id)), \
+		      BITS_WITH_WMASK(0, 0x1, (id) % 16))
+#define CRU_GATING_OPS(id) \
+	mmio_write_32(CRU_BASE + CRU_GATEID_CONS((id)), \
+		      BITS_WITH_WMASK(1, 0x1, (id) % 16))
+
+#define CRU_RST1_MCU_BITS	0x3
+#define CRU_RST1_MCU_BITS_SHIFT 12
+
+/** mcu location **/
+#define MCUOS_BASE		(TZRAM_BASE + 0x80000)
+#define MCUOS_SIZE		(64 * 1024)
+
+/****************************************************
+ * pmu_grf con, reg
+ ***************************************************/
+#define PMU_PVTM_GATE_EN	BIT(3)
+
+#define PMUGRF_SOC_CON0		0x100
+
+#define PMUGRF_PVTM_CON0	0x180
+#define PMUGRF_PVTM_CON1	0x184
+#define PMUGRF_PVTM_ST0		0x190
+#define PMUGRF_PVTM_ST1		0x194
+#define PMUGRF_OS_REG0		0x200
+#define PMUGRF_GPIO0_IOMUX(n)	((n) * 4)
+
+enum rk3688_pmugrf_soc_con0 {
+	pgrf_soc_32k_src = 6,
+	pgrf_soc_pwm2_sel,
+	pgrf_soc_ddrphy_bufen_core,
+	pgrf_soc_ddrphy_bufen_io = 9,
+	pgrf_soc_pmu_rst_hd
+};
+
+enum rk3688_pmugrf_pvtm_con0 {
+	pgrf_pvtm_st = 0,
+	pgrf_pvtm_en
+};
+
+/**************************** periph ctrl ******************************/
+#define PER_TIMER_CNT_NS	(41)
+#define PER_US_CYSLES_JUST	(1000)
+#define DLY_PER_US_CYCL_800M	(135 * PER_US_CYSLES_JUST)
+#define DLY_PER_US_CYCL_24M	(8 * PER_US_CYSLES_JUST)
+
+#define barrier()		__asm__ __volatile__("" : : : "memory")
+#define nop()			__asm__ __volatile__("nop")
+
+void pin_set_fun(uint8_t port, uint8_t bank, uint8_t b_gpio, uint8_t fun);
+void gpio_set_in_output(uint8_t port,
+			uint8_t bank,
+			uint8_t b_gpio,
+			uint8_t type);
+void peri_pin_to_gpio(uint32_t cfg);
+void peri_pin_to_restore(uint32_t cfg);
+
+void delay_time_calib_set(uint64_t calib);
+uint64_t arch_counter_get_cntpct(void);
+void delay_sycle(uint64_t sycles);
+void usdelay(uint32_t us);
 
 #endif /* __SOC_H__ */

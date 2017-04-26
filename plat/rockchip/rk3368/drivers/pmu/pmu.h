@@ -215,7 +215,18 @@ enum pmu_bus_idle_st {
 	pmu_active_cci,
 };
 
-#define PM_PWRDM_CPUSB_MSK (0xf << 5)
+typedef enum {
+	pmu_power_off = 0,
+	pmu_power_on
+} pmu_power_state_t;
+
+typedef enum {
+	pmu_system_shutdown = 0,
+	pmu_system_reboot = 1,
+	pmu_system_reset = 2
+} pmu_system_state_t;
+
+#define PM_PWRDM_CPUSB_MSK	(0xf << 5)
 
 #define CKECK_WFE_MSK		0x1
 #define CKECK_WFI_MSK		0x10
@@ -224,10 +235,86 @@ enum pmu_bus_idle_st {
 #define PD_CTR_LOOP		500
 #define CHK_CPU_LOOP		500
 
-#define MAX_WAIT_CONUT 1000
+#define MAX_WAIT_COUNT		1000
 
 #define GPIO0A0_SEL_MSK		0x3
 #define GPIO0A0_SEL_SHIFT	0
+#define IOMUX_GPIO		0
 #define IOMUX_PMIC_SLP		2
+
+/*******************************************************
+ *     sleep mode sys ctrl define
+ *******************************************************/
+#define SLP_WFI				BIT(0)
+#define SLP_ARMPD			BIT(1)
+#define SLP_ARMOFF			BIT(2)
+#define SLP_ARMOFF_LOGPD		BIT(3)
+#define SLP_ARMOFF_LOGOFF		BIT(4)
+/* all plls except ddr's pll*/
+#define SLP_PMU_PLLS_PWRDN		BIT(8)
+#define SLP_PMU_PMUALIVE_32K		BIT(9)
+#define SLP_PMU_DIS_OSC			BIT(10)
+/* all plls except ddr's pll*/
+#define SLP_SFT_PLLS_DEEP		BIT(16)
+#define SLP_SFT_32K_EXT			BIT(17)
+#define SLP_SFT_PD_PERI			BIT(18)
+/* noboot scus in muti-cluster */
+#define SLP_SFT_PD_NBSCUS		BIT(19)
+
+#define SLP_PMU_DIS_OSC_CDT \
+	(SLP_PMU_PMUALIVE_32K | SLP_PMU_PLLS_PWRDN | SLP_SFT_PLLS_DEEP)
+
+/***************************  AXI QOS *********************************/
+#define CPU_AXI_QOS_PRIORITY		0x08
+#define CPU_AXI_QOS_MODE		0x0c
+#define CPU_AXI_QOS_BANDWIDTH		0x10
+#define CPU_AXI_QOS_SATURATION		0x14
+#define CPU_AXI_QOS_EXTCONTROL		0x18
+
+#define CPU_AXI_QOS_NUM_REGS		5
+
+/* service peri */
+#define CPU_AXI_PERI_QOS_BASE		(AXI_PERI_BASE + 0x0)
+/* service vio */
+#define CPU_AXI_VIO0_IEP_QOS_BASE	(AXI_VIO_BASE + 0x000)
+#define CPU_AXI_VIO0_ISP_R0_QOS_BASE	(AXI_VIO_BASE + 0x080)
+#define CPU_AXI_VIO0_ISP_R1_QOS_BASE	(AXI_VIO_BASE + 0x100)
+#define CPU_AXI_VIO0_ISP_W0_QOS_BASE	(AXI_VIO_BASE + 0x180)
+#define CPU_AXI_VIO0_ISP_W1_QOS_BASE	(AXI_VIO_BASE + 0x200)
+#define CPU_AXI_VIO_VIP_QOS_BASE	(AXI_VIO_BASE + 0x280)
+#define CPU_AXI_VIO1_VOP_QOS_BASE	(AXI_VIO_BASE + 0x300)
+#define CPU_AXI_VIO1_RGA_R_QOS_BASE	(AXI_VIO_BASE + 0x380)
+#define CPU_AXI_VIO1_RGA_W_QOS_BASE	(AXI_VIO_BASE + 0x400)
+/* service video */
+#define CPU_AXI_HEVC_R_QOS_BASE		(AXI_VIDEO_BASE + 0x0)
+#define CPU_AXI_VPU_R_QOS_BASE		(AXI_VIDEO_BASE + 0x100)
+#define CPU_AXI_VPU_W_QOS_BASE		(AXI_VIDEO_BASE + 0x180)
+/* service gpu */
+#define CPU_AXI_GPU_QOS_BASE		(AXI_GPU_BASE + 0x0)
+
+#define SAVE_QOS(array, NAME) \
+	RK3368_CPU_AXI_SAVE_QOS(array, CPU_AXI_##NAME##_QOS_BASE)
+#define RESTORE_QOS(array, NAME) \
+	RK3368_CPU_AXI_RESTORE_QOS(array, CPU_AXI_##NAME##_QOS_BASE)
+
+#define RK3368_CPU_AXI_SAVE_QOS(array, base) do { \
+	array[0] = mmio_read_32(base + CPU_AXI_QOS_PRIORITY); \
+	array[1] = mmio_read_32(base + CPU_AXI_QOS_MODE); \
+	array[2] = mmio_read_32(base + CPU_AXI_QOS_BANDWIDTH); \
+	array[3] = mmio_read_32(base + CPU_AXI_QOS_SATURATION); \
+	array[4] = mmio_read_32(base + CPU_AXI_QOS_EXTCONTROL); \
+} while (0)
+
+#define RK3368_CPU_AXI_RESTORE_QOS(array, base) do { \
+	mmio_write_32(base + CPU_AXI_QOS_PRIORITY, array[0]); \
+	mmio_write_32(base + CPU_AXI_QOS_MODE, array[1]); \
+	mmio_write_32(base + CPU_AXI_QOS_BANDWIDTH, array[2]); \
+	mmio_write_32(base + CPU_AXI_QOS_SATURATION, array[3]); \
+	mmio_write_32(base + CPU_AXI_QOS_EXTCONTROL, array[4]); \
+} while (0)
+
+int suspend_mode_handler(uint64_t mode_id,
+			 uint64_t config1,
+			 uint64_t config2);
 
 #endif /* __PMU_H__ */

@@ -32,33 +32,17 @@
 #include <rk3368_def.h>
 #include <soc.h>
 
-static uint32_t plls_con[END_PLL_ID][4];
+/* Aggregate of all devices in the first GB */
+#define RK3368_DEV_RNG0_BASE	0xff000000
+#define RK3368_DEV_RNG0_SIZE	0x00ff0000
 
 /* Table of regions to map using the MMU. */
 const mmap_region_t plat_rk_mmap[] = {
-	MAP_REGION_FLAT(CCI400_BASE, CCI400_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(GIC400_BASE, GIC400_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(STIME_BASE, STIME_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(SGRF_BASE, SGRF_SIZE,
+	MAP_REGION_FLAT(RK3368_DEV_RNG0_BASE, RK3368_DEV_RNG0_SIZE,
 			MT_DEVICE | MT_RW | MT_SECURE),
 	MAP_REGION_FLAT(PMUSRAM_BASE, PMUSRAM_SIZE,
 			MT_MEMORY | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(PMU_BASE, PMU_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(UART_DBG_BASE, UART_DBG_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(CRU_BASE, CRU_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(DDR_PCTL_BASE, DDR_PCTL_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(DDR_PHY_BASE, DDR_PHY_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(GRF_BASE, GRF_SIZE,
-			MT_DEVICE | MT_RW | MT_SECURE),
-	MAP_REGION_FLAT(SERVICE_BUS_BASE, SERVICE_BUS_SISE,
+	MAP_REGION_FLAT(MCUOS_BASE, MCUOS_SIZE,
 			MT_DEVICE | MT_RW | MT_SECURE),
 	MAP_REGION_FLAT(SHARE_MEM_BASE, SHARE_MEM_SIZE,
 			MT_DEVICE | MT_RW | MT_SECURE),
@@ -76,6 +60,194 @@ const unsigned char rockchip_power_domain_tree_desc[] = {
 	/* No of children for the second cluster node */
 	PLATFORM_CLUSTER1_CORE_COUNT
 };
+
+static uint64_t delay_per_us_cycles = DLY_PER_US_CYCL_800M;
+
+void delay_time_calib_set(uint64_t calib)
+{
+	delay_per_us_cycles = calib;
+}
+
+uint64_t arch_counter_get_cntpct(void)
+{
+	uint64_t cval;
+
+	isb();
+	cval = read_cntpct_el0();
+	return cval;
+}
+
+void delay_sycle(uint64_t sycles)
+{
+	while (sycles--)
+		barrier();
+}
+
+void usdelay(uint32_t us)
+{
+	uint64_t sycles;
+
+	sycles = (delay_per_us_cycles * us) / PER_US_CYSLES_JUST;
+
+	while (sycles--)
+		barrier();
+}
+
+void regs_updata_bits(uintptr_t addr, uint32_t val,
+		      uint32_t mask, uint32_t shift)
+{
+	uint32_t tmp, orig;
+
+	orig = mmio_read_32(addr);
+
+	tmp = orig & ~(mask << shift);
+	tmp |= (val & mask) << shift;
+
+	if (tmp != orig)
+		mmio_write_32(addr, tmp);
+	dsb();
+}
+
+/******************************************************************
+ *gpio func
+ *pin=0x0a21  gpio0a2, port=0, bank=a, b_gpio=2, fun=1
+ ******************************************************************/
+void pin_set_fun(uint8_t port, uint8_t bank, uint8_t b_gpio, uint8_t fun)
+{
+	uint32_t off_set;
+
+	bank -= 0xa;
+
+	if (port > 0)
+		off_set = GRF_BASE + (port - 1) * 16 + bank * 4;
+	else
+		off_set = PMU_GRF_BASE + PMUGRF_GPIO0_IOMUX(bank);
+
+	mmio_write_32(off_set, BITS_WITH_WMASK(fun, 0x3, b_gpio * 2));
+}
+
+void pin_set_pull(uint8_t port, uint8_t bank, uint8_t b_gpio, uint8_t pull)
+{
+	uint32_t off_set;
+
+	bank -= 0xa;
+
+	if (port > 0)
+		off_set = GRF_BASE + 0x100 + (port - 1) * 16 + bank * 4;
+	else
+		off_set = PMU_GRF_BASE + 0x10 + bank * 4;
+
+	mmio_write_32(off_set, BITS_WITH_WMASK(pull, 0x3, b_gpio * 2));
+}
+
+static uint32_t gpio_base[4] = {
+	PMU_GPIO0_BASE,
+	GPIO1_BASE,
+	GPIO2_BASE,
+	GPIO3_BASE
+};
+
+void gpio_set_in_output(uint8_t port,
+			uint8_t bank,
+			uint8_t b_gpio,
+			uint8_t type)
+{
+	uint8_t val;
+
+	bank -= 0xa;
+	b_gpio = bank * 8 + b_gpio;
+
+	if (type == RKPM_GPIO_OUTPUT)
+		val = 0x1;
+	else
+		val = 0;
+
+	regs_updata_bits(gpio_base[port] + GPIO_SWPORT_DDR, val, 0x1, b_gpio);
+}
+
+/*
+ * en : 1 enable, 0 disable
+ * bank, b_gpio = 0xff, en ctrl all port gpios
+ */
+void gpio_set_inten(uint8_t port, uint8_t bank, uint8_t b_gpio, uint8_t en)
+{
+	uint32_t val;
+
+	if (b_gpio == 0xff && bank == 0xff) {
+		bank -= 0xa;
+		b_gpio = bank * 8 + b_gpio;
+
+		if (en == 1)
+			val = 0xffffffff;
+		else
+			val = 0;
+
+		mmio_write_32(gpio_base[port] + GPIO_INTEN, val);
+	} else {
+		bank -= 0xa;
+		b_gpio = bank * 8 + b_gpio;
+
+		if (en == 1)
+			val = 0x1;
+		else
+			val = 0;
+
+		regs_updata_bits(gpio_base[port] + GPIO_INTEN,
+				 val,
+				 0x1,
+				 b_gpio);
+	}
+}
+
+void gpio_int_clr(uint8_t port, uint8_t bank, uint8_t b_gpio)
+{
+	bank -= 0xa;
+	b_gpio = bank * 8 + b_gpio;
+
+	regs_updata_bits(gpio_base[port] + GPIO_PORTS_EOI, 0x1, 0x1, b_gpio);
+}
+
+void gpio_set_output_level(uint8_t port,
+			   uint8_t bank,
+			   uint8_t b_gpio,
+			   uint8_t level)
+{
+	uint8_t val;
+
+	bank -= 0xa;
+	b_gpio = bank * 8 + b_gpio;
+
+	if (level == RKPM_GPIO_OUT_H)
+		val = 0x1;
+	else
+		val = 0;
+
+	regs_updata_bits(gpio_base[port] + GPIO_SWPORT_DR, val, 0x1, b_gpio);
+}
+
+void __dead2 rockchip_soc_soft_reset(void)
+{
+	uint32_t temp_val;
+
+	mmio_write_32(CRU_BASE + PLL_CONS((GPLL_ID), 3), PLL_SLOW_BITS);
+	mmio_write_32(CRU_BASE + PLL_CONS((CPLL_ID), 3), PLL_SLOW_BITS);
+	mmio_write_32(CRU_BASE + PLL_CONS((NPLL_ID), 3), PLL_SLOW_BITS);
+	mmio_write_32(CRU_BASE + PLL_CONS((ABPLL_ID), 3), PLL_SLOW_BITS);
+	mmio_write_32(CRU_BASE + PLL_CONS((ALPLL_ID), 3), PLL_SLOW_BITS);
+
+	temp_val = mmio_read_32(CRU_BASE + CRU_GLB_RST_CON) |
+		   PMU_RST_BY_SECOND_SFT;
+
+	mmio_write_32(CRU_BASE + CRU_GLB_RST_CON, temp_val);
+	mmio_write_32(CRU_BASE + CRU_GLB_SRST_SND, 0xeca8);
+
+	/*
+	 * Maybe the HW needs some times to reset the system,
+	 * so we do not hope the core to excute valid codes.
+	 */
+	while (1)
+	;
+}
 
 void secure_timer_init(void)
 {
@@ -112,105 +284,4 @@ void plat_rockchip_soc_init(void)
 {
 	secure_timer_init();
 	sgrf_init();
-}
-
-void regs_updata_bits(uintptr_t addr, uint32_t val,
-		      uint32_t mask, uint32_t shift)
-{
-	uint32_t tmp, orig;
-
-	orig = mmio_read_32(addr);
-
-	tmp = orig & ~(mask << shift);
-	tmp |= (val & mask) << shift;
-
-	if (tmp != orig)
-		mmio_write_32(addr, tmp);
-	dsb();
-}
-
-static void plls_suspend(uint32_t pll_id)
-{
-	plls_con[pll_id][0] = mmio_read_32(CRU_BASE + PLL_CONS((pll_id), 0));
-	plls_con[pll_id][1] = mmio_read_32(CRU_BASE + PLL_CONS((pll_id), 1));
-	plls_con[pll_id][2] = mmio_read_32(CRU_BASE + PLL_CONS((pll_id), 2));
-	plls_con[pll_id][3] = mmio_read_32(CRU_BASE + PLL_CONS((pll_id), 3));
-
-	mmio_write_32(CRU_BASE + PLL_CONS((pll_id), 3), PLL_SLOW_BITS);
-	mmio_write_32(CRU_BASE + PLL_CONS((pll_id), 3), PLL_BYPASS);
-}
-
-static void pm_plls_suspend(void)
-{
-	plls_suspend(NPLL_ID);
-	plls_suspend(CPLL_ID);
-	plls_suspend(GPLL_ID);
-	plls_suspend(ABPLL_ID);
-	plls_suspend(ALPLL_ID);
-}
-
-static inline void plls_resume(void)
-{
-	mmio_write_32(CRU_BASE + PLL_CONS(ABPLL_ID, 3),
-		      plls_con[ABPLL_ID][3] | PLL_BYPASS_W_MSK);
-	mmio_write_32(CRU_BASE + PLL_CONS(ALPLL_ID, 3),
-		      plls_con[ALPLL_ID][3] | PLL_BYPASS_W_MSK);
-	mmio_write_32(CRU_BASE + PLL_CONS(GPLL_ID, 3),
-		      plls_con[GPLL_ID][3] | PLL_BYPASS_W_MSK);
-	mmio_write_32(CRU_BASE + PLL_CONS(CPLL_ID, 3),
-		      plls_con[CPLL_ID][3] | PLL_BYPASS_W_MSK);
-	mmio_write_32(CRU_BASE + PLL_CONS(NPLL_ID, 3),
-		      plls_con[NPLL_ID][3] | PLL_BYPASS_W_MSK);
-}
-
-void soc_sleep_config(void)
-{
-	int i = 0;
-
-	for (i = 0; i < CRU_CLKGATES_CON_CNT; i++)
-		mmio_write_32(CRU_BASE + CRU_CLKGATES_CON(i), 0xffff0000);
-	pm_plls_suspend();
-
-	for (i = 0; i < CRU_CLKGATES_CON_CNT; i++)
-		mmio_write_32(CRU_BASE + CRU_CLKGATES_CON(i), 0xffff0000);
-}
-
-void pm_plls_resume(void)
-{
-	plls_resume();
-
-	mmio_write_32(CRU_BASE + PLL_CONS(ABPLL_ID, 3),
-		      plls_con[ABPLL_ID][3] | PLLS_MODE_WMASK);
-	mmio_write_32(CRU_BASE + PLL_CONS(ALPLL_ID, 3),
-		      plls_con[ALPLL_ID][3] | PLLS_MODE_WMASK);
-	mmio_write_32(CRU_BASE + PLL_CONS(GPLL_ID, 3),
-		      plls_con[GPLL_ID][3] | PLLS_MODE_WMASK);
-	mmio_write_32(CRU_BASE + PLL_CONS(CPLL_ID, 3),
-		      plls_con[CPLL_ID][3] | PLLS_MODE_WMASK);
-	mmio_write_32(CRU_BASE + PLL_CONS(NPLL_ID, 3),
-		      plls_con[NPLL_ID][3] | PLLS_MODE_WMASK);
-}
-
-void __dead2 rockchip_soc_soft_reset(void)
-{
-	uint32_t temp_val;
-
-	mmio_write_32(CRU_BASE + PLL_CONS((GPLL_ID), 3), PLL_SLOW_BITS);
-	mmio_write_32(CRU_BASE + PLL_CONS((CPLL_ID), 3), PLL_SLOW_BITS);
-	mmio_write_32(CRU_BASE + PLL_CONS((NPLL_ID), 3), PLL_SLOW_BITS);
-	mmio_write_32(CRU_BASE + PLL_CONS((ABPLL_ID), 3), PLL_SLOW_BITS);
-	mmio_write_32(CRU_BASE + PLL_CONS((ALPLL_ID), 3), PLL_SLOW_BITS);
-
-	temp_val = mmio_read_32(CRU_BASE + CRU_GLB_RST_CON) |
-		   PMU_RST_BY_SECOND_SFT;
-
-	mmio_write_32(CRU_BASE + CRU_GLB_RST_CON, temp_val);
-	mmio_write_32(CRU_BASE + CRU_GLB_SRST_SND, 0xeca8);
-
-	/*
-	 * Maybe the HW needs some times to reset the system,
-	 * so we do not hope the core to excute valid codes.
-	 */
-	while (1)
-	;
 }
