@@ -1897,10 +1897,15 @@ uint32_t ddr_set_rate(uint32_t page_type)
 
 	p = (struct set_rate_params *)base_addr;
 	VERBOSE("base_addr:%lx, hz=%d\n", base_addr, p->hz);
-	if (p->hz < MHz)
+	if (p->hz < MHz) {
+		if (p->hz < 786)
+			goto err;
 		mhz = p->hz;
-	else
+	} else {
+		if (p->hz < (786 * MHz))
+			goto err;
 		mhz = p->hz / MHz;
+	}
 
 	dest_mode = (~(dram_param.current_index)) & 1;
 	VERBOSE("current cpu : %x\n", plat_my_core_pos());
@@ -1966,11 +1971,16 @@ uint32_t ddr_round_rate(uint32_t page_type)
 		goto err;
 	p = (struct round_rate_params *)base_addr;
 	VERBOSE("base_addr:%lx, hz=%d\n", base_addr, p->hz);
-	if (p->hz < MHz)
+	if (p->hz < MHz) {
+		if (p->hz < 786)
+			goto err;
 		ret = ddr_set_pll(p->hz, 0);
-	else
+	} else {
+		if (p->hz < (786 * MHz))
+			goto err;
 		ret = ddr_set_pll(p->hz / MHz, 0)
 			* MHz;
+	}
 	return ret;
 err:
 	return 0;
