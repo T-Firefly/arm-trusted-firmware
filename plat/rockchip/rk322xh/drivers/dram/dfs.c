@@ -646,7 +646,8 @@ static __sramfunc uint32_t set_dpll(unsigned int mhz, uint32_t set)
 	return 0;
 }
 
-/* set = 0 : ddr_round_rate, and PLL setting will be record in sram_param
+/*
+ * set = 0 : ddr_round_rate, and PLL setting will be record in sram_param
  * set = 1,2 : pll two setting step
  */
 __sramfunc uint32_t ddr_set_pll(uint32_t mhz, uint32_t set)
@@ -1092,7 +1093,7 @@ static void ddr_related_init(struct ddr_dts_config_timing *dts_timing)
 	mmio_write_32(GRF_BASE + GRF_SOC_CON(5), OTHER_MASTER_STALL_RESPONSE);
 	mmio_write_32(GRF_BASE + GRF_SOC_CON(6), 0xffffffff &
 				(~(MSCH_SRV_FW_FWR | MSCH_FWR_LINK |
-				CORE_FWR_BUS_LINK/* | CORE_REQ_LINK*/)));
+				CORE_FWR_BUS_LINK | CORE_REQ_LINK)));
 	/* need to update drv,odt,low power mode here */
 	/*
 	ddr_update_odt();
@@ -1153,14 +1154,6 @@ static void pre_set_rate(uint32_t mhz, uint32_t dest_mode,
 {
 	struct set_rate_rel_timing *timing = &(p_sram_param->timing[dest_mode]);
 
-	/*
-	if (dram_param.index_freq[dest_mode] == mhz) {
-	*/
-	if (0) {
-		VERBOSE("pre_set_rate() mhz == current freq\n");
-		return;
-	}
-
 	dram_param.timing_config.freq = mhz;
 	if (mhz < p_sram_param->drv_odt_lp_cfg.dram_dll_dis_freq)
 		dram_param.timing_config.dllbp = 1;
@@ -1180,13 +1173,6 @@ static void pre_set_rate(uint32_t mhz, uint32_t dest_mode,
 			      p_sram_param->ch.bw,
 			      timing);
 	timing->odt = dram_param.timing_config.odt;
-	/* program UMCTL2_REGS_FREQ1 or normal register */
-	/*
-	sw_set_req();
-	update_pctl_timing(dest_mode, timing, p_sram_param->dramtype);
-	update_refresh_reg();
-	sw_set_ack();
-	*/
 
 	dram_param.index_freq[dest_mode] = mhz;
 }
@@ -1241,7 +1227,8 @@ static void post_set_rate(uint32_t mhz, uint32_t dest_mode,
 				PCTL2_SELFREF_EN);
 }
 
-/* rank = 1: cs0
+/*
+ * rank = 1: cs0
  * rank = 2: cs1
  * rank = 3: cs0 & cs1
  * note: be careful of keep mr original val
@@ -1440,9 +1427,6 @@ static void stop_cpus(void)
 		sram_udelay(1);
 		timeout--;
 	}
-	/*if (timeout < 0)
-		VERBOSE("====stop cpu timeout====\n");
-	*/
 }
 
 static void start_cpus(void)
@@ -1507,9 +1491,25 @@ static void poll_vop_flag1(void)
 
 static __sramfunc void poll_vop_flag0(void)
 {
-	while (((vop_read32(VOP_SYS_CTRL) & VOP_STAND_BY) == 0) &&
-	       ((vop_read32(VOP_INTR_RAW_STATUS0) & VOP_FLAG0_STATUS) == 0))
-		continue;
+	int timeout;
+
+	timeout = 32000;
+	while ((((vop_read32(VOP_SYS_CTRL) & VOP_STAND_BY) == 0) &&
+		((vop_read32(VOP_INTR_RAW_STATUS0) & VOP_FLAG0_STATUS) == 0)) &&
+		(timeout >= 0)) {
+		sram_udelay(1);
+		timeout--;
+	}
+	if (timeout <= 0) {
+		INFO("wait flag0 timeout\n");
+		/*
+		 * force to scale ddr frequency
+		 * need flush L1/L2, because INFO()
+		 * have dirty it
+		 */
+		fiq_dfs_flush_l1();
+		fiq_dfs_flush_l2();
+	}
 }
 
 /*
@@ -1533,7 +1533,7 @@ static uint32_t wait_vop_vbank(struct set_rate_params *p)
 {
 	uint32_t wait_flag0 = 0;
 
-	/*wait for lcdc line flag intrrupt*/
+	/* wait for lcdc line flag intrrupt */
 	while (1) {
 		if (!check_vop_en()) {
 			/* vop clk disable
@@ -1804,7 +1804,6 @@ __sramfunc void ddr_set_rate_sram(uint32_t mhz, uint32_t dest_mode,
 			   PCTL2_DFI_LP_EN_SR_MASK,
 			   dfi_lp_en_sr << PCTL2_DFI_LP_EN_SR_SHIFT);
 	/* wait 2*tREFI to avoid violate the JEDEC */
-	/*sram_udelay(15);*/
 	/* exit self-refresh */
 	mmio_clrbits_32(DDRC_BASE_ADDR + DDR_PCTL2_PWRCTL, PCTL2_SELFREF_SW);
 	while ((mmio_read_32(DDRC_BASE_ADDR + DDR_PCTL2_STAT) &
@@ -1903,16 +1902,6 @@ uint32_t ddr_set_rate(uint32_t page_type)
 	else
 		mhz = p->hz / MHz;
 
-	/*__asm volatile ("b .");*/
-	/*
-	if (mhz == (ddr_get_rate() /
-			(1000 * 1000))) {
-	*/
-	if (0) {
-		VERBOSE("_ddr_set_rate() mhz == current freq\n");
-		goto out;
-	}
-
 	dest_mode = (~(dram_param.current_index)) & 1;
 	VERBOSE("current cpu : %x\n", plat_my_core_pos());
 	pre_set_rate(mhz, dest_mode, &sram_param);
@@ -1930,7 +1919,6 @@ uint32_t ddr_set_rate(uint32_t page_type)
 		sram_param.stop_cpu_delay =
 			sram_param.stop_cpu_end - sram_param.stop_cpu_start;
 #endif
-	sram_udelay(100);
 
 	daif = read_daif();
 	write_daifset(DISABLE_ALL_EXCEPTIONS);
@@ -1952,12 +1940,12 @@ uint32_t ddr_set_rate(uint32_t page_type)
 		sram_param.set_rate_delay =
 			(sram_param.set_rate_end - sram_param.set_rate_start);
 	VERBOSE("stop cpu use %ld us, max delay %ld us\n",
-	     (sram_param.stop_cpu_end - sram_param.stop_cpu_start) / 24,
-	     sram_param.stop_cpu_delay / 24);
+		(sram_param.stop_cpu_end - sram_param.stop_cpu_start) / 24,
+		 sram_param.stop_cpu_delay / 24);
 	VERBOSE("ddr scale freq use %ld us, max %ld us\n",
-	     (sram_param.set_rate_end - sram_param.set_rate_start) / 24,
-	     sram_param.set_rate_delay / 24);
-out:
+		(sram_param.set_rate_end - sram_param.set_rate_start) / 24,
+		 sram_param.set_rate_delay / 24);
+
 	if (p->hz < MHz)
 		return mhz;
 	else
@@ -2071,13 +2059,13 @@ int fiq_dfs_wait_cpus_wfe(void)
 	uint32_t pwroff_cpus, wfe_st, tgt_wfe;
 	uint32_t cpu_cur = plat_my_core_pos();
 	/*
-	* The system ensure that the cpu is not up again.
-	*/
+	 * The system ensure that the cpu is not up again.
+	 */
 	pwroff_cpus = fiq_dfs_get_poweroff_cpus_msk();
 
 	/*
-	* The online cpu is in stop status
-	*/
+	 * The online cpu is in stop status
+	 */
 	for (i = 0; i < PLATFORM_CORE_COUNT; i++) {
 		if (i == cpu_cur)
 			continue;
