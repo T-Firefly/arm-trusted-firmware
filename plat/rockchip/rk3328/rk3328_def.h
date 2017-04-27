@@ -32,7 +32,7 @@
 #define __PLAT_DEF_H__
 
 #define MAJOR_VERSION		(1)
-#define MINOR_VERSION		(2)
+#define MINOR_VERSION		(3)
 
 #define SIZE_K(n)		((n) * 1024)
 
