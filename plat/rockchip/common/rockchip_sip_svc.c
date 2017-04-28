@@ -108,8 +108,10 @@ int share_mem_page_get_handler(uint64_t page_num, share_page_type_t page_type,
 
 	/* page_type has been ocuppied */
 	for (i = 0; i < ARRAY_SIZE(share_mm); i++) {
-		if (share_mm[i].page_type == page_type)
-			return SIP_RET_INVALID_PARAMS;
+		if (share_mm[i].page_type == page_type) {
+			res->a1 = share_mm[i].page_base;
+			return SIP_RET_SUCCESS;
+		}
 	}
 
 	/* find memory page base */
