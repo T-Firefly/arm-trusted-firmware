@@ -996,7 +996,8 @@ static void gen_rk3328_ddr_params(struct timing_related_config *timing_config,
 	gen_noc_params(timing_config, pdram_timing, bw, timing);
 }
 
-static __sramfunc void ddr_update_odt(struct rk3328_ddr_sram_param *p_sram_param)
+static __sramfunc void ddr_update_odt(struct rk3328_ddr_sram_param *p_sram_param,
+				      uint32_t dest_mode)
 {
 	struct drv_odt_lp_config *drv_odt_lp_cfg;
 
@@ -1018,7 +1019,7 @@ static __sramfunc void ddr_update_odt(struct rk3328_ddr_sram_param *p_sram_param
 	mmio_write_32(PHY_REG(0x50), drv_odt_lp_cfg->phy_side_dq_drv);
 	mmio_write_32(PHY_REG(0x5f), drv_odt_lp_cfg->phy_side_dq_drv);
 	/* ODT */
-	if (p_sram_param->timing->odt) {
+	if (p_sram_param->timing[dest_mode].odt) {
 		mmio_write_32(PHY_REG(0x21), drv_odt_lp_cfg->phy_side_odt);
 		mmio_write_32(PHY_REG(0x2e), drv_odt_lp_cfg->phy_side_odt);
 		mmio_write_32(PHY_REG(0x31), drv_odt_lp_cfg->phy_side_odt);
@@ -1771,7 +1772,7 @@ __sramfunc void ddr_set_rate_sram(uint32_t mhz, uint32_t dest_mode,
 	/* set bufferen to 1 (IO retention) */
 	mmio_write_32(GRF_BASE + GRF_SOC_CON(2), GRF_CON_DDRPHY_BUFFEREN_MASK |
 			GRF_CON_DDRPHY_BUFFEREN_DIS);
-	ddr_update_odt(p_sram_param);
+	ddr_update_odt(p_sram_param, dest_mode);
 	mmio_write_32(CRU_BASE + CRU_CLKGATE_CON(18),
 		      DDR_MSCH_UPCTL_EN_MASK |
 		      (0x0 << DDR_MSCH_UPCTL_EN_SHIFT));
