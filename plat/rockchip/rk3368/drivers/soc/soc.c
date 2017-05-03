@@ -227,19 +227,14 @@ void gpio_set_output_level(uint8_t port,
 
 void __dead2 rockchip_soc_soft_reset(void)
 {
-	uint32_t temp_val;
-
 	mmio_write_32(CRU_BASE + PLL_CONS((GPLL_ID), 3), PLL_SLOW_BITS);
 	mmio_write_32(CRU_BASE + PLL_CONS((CPLL_ID), 3), PLL_SLOW_BITS);
 	mmio_write_32(CRU_BASE + PLL_CONS((NPLL_ID), 3), PLL_SLOW_BITS);
 	mmio_write_32(CRU_BASE + PLL_CONS((ABPLL_ID), 3), PLL_SLOW_BITS);
 	mmio_write_32(CRU_BASE + PLL_CONS((ALPLL_ID), 3), PLL_SLOW_BITS);
 
-	temp_val = mmio_read_32(CRU_BASE + CRU_GLB_RST_CON) |
-		   PMU_RST_BY_SECOND_SFT;
-
-	mmio_write_32(CRU_BASE + CRU_GLB_RST_CON, temp_val);
-	mmio_write_32(CRU_BASE + CRU_GLB_SRST_SND, 0xeca8);
+	mmio_write_32(CRU_BASE + CRU_GLB_SRST_FST, CRU_RST_FIRST_TRIGER);
+	dsb();
 
 	/*
 	 * Maybe the HW needs some times to reset the system,
@@ -247,6 +242,23 @@ void __dead2 rockchip_soc_soft_reset(void)
 	 */
 	while (1)
 	;
+}
+
+void rockchip_soc_soft_reset_config(void)
+{
+	uint32_t temp_val;
+
+	mmio_write_32(PMU_GRF_BASE + PMUGRF_SOC_CON0,
+		      BITS_WITH_WMASK(0, 1, 10));
+
+	temp_val = mmio_read_32(CRU_BASE + CRU_GLB_RST_CON);
+	/*
+	 * Set pmu and wtd and tsadc is reseted by first reset!
+	 */
+	temp_val &= ~CRU_RST_PMU_MSK;
+	temp_val |= CRU_RST_TSADC_FIRST | CRU_RST_WTD_FIRST;
+
+	mmio_write_32(CRU_BASE + CRU_GLB_RST_CON, temp_val);
 }
 
 void secure_timer_init(void)
@@ -283,5 +295,8 @@ void sgrf_init(void)
 void plat_rockchip_soc_init(void)
 {
 	secure_timer_init();
+	rockchip_soc_soft_reset_config();
 	sgrf_init();
+	NOTICE("BL31:Rockchip release version: v%d.%d\n",
+	       MAJOR_VERSION, MINOR_VERSION);
 }

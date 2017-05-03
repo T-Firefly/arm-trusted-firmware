@@ -31,6 +31,9 @@
 #ifndef __PLAT_DEF_H__
 #define __PLAT_DEF_H__
 
+#define MAJOR_VERSION		(1)
+#define MINOR_VERSION		(3)
+
 /* Special value used to verify platform parameters from BL2 to BL3-1 */
 #define RK_BL31_PLAT_PARAM_VAL	0x0f1e2d3c4b5a6978ULL
 
@@ -60,9 +63,6 @@
 
 #define SRAM_BASE		0xff8c0000
 #define SRAM_SIZE		0x10000
-
-#define UART_DBG_BASE		0xff690000
-#define UART_DBG_SIZE		0x10000
 
 #define PMUSRAM_BASE            0xff720000
 #define PMUSRAM_SIZE            0x10000
@@ -115,7 +115,12 @@
 /**************************************************************************
  * UART related constants
  **************************************************************************/
-#define RK3368_UART2_BASE	UART_DBG_BASE
+#define RK3368_UART2_BASE	0xff690000
+#define RK3368_UART3_BASE	0xff1b0000
+
+#define RK3368_UART_DBG_BASE	RK3368_UART3_BASE
+#define UART_DBG_SIZE		0x10000
+
 #define RK3368_BAUDRATE		115200
 #define RK3368_UART_CLOCK	24000000
 

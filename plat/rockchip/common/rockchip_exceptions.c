@@ -103,8 +103,10 @@ struct uartdbg_el1_st_t {
 static struct uartdbg_el1_st_t uartdbg_el_data;
 static struct uartdbg_uart_info_t uartdbg_uart_info;
 static uint8_t boot_cpu_msk, boot_cpu;
-static cpu_context_t rk_sec_context[PLATFORM_CORE_COUNT];
 
+#ifndef SPD_opteed
+static cpu_context_t rk_sec_context[PLATFORM_CORE_COUNT];
+#endif
 static uint64_t gic_handle_irq(uint32_t id,
 			       uint32_t flags,
 			       void *handle,
@@ -198,11 +200,20 @@ static unsigned int gic_get_cpuif_id(void)
  */
 void rk_register_interrupt_routing_model(void)
 {
-	uint64_t flags, rc, mpidr;
-	uint32_t linear_id, cluster, cpu;
+	uint64_t rc, flags;
 	uint32_t intr_type;
 	unsigned int gic_version;
+#ifndef SPD_opteed
+	uint64_t mpidr;
+	uint32_t linear_id, cluster, cpu;
+#endif
 
+#ifndef PLAT_SKIP_OPTEE_S_EL1_INT_REGISTER
+	rockchip_secure_interrupt_setup = 0;
+	return;
+#endif
+
+#ifndef SPD_opteed
 	for (cluster = 0; cluster < PLATFORM_CLUSTER_COUNT; cluster++) {
 		if (cluster == 0) {
 			for (cpu = 0; cpu < PLATFORM_CLUSTER0_CORE_COUNT; cpu++) {
@@ -225,6 +236,10 @@ void rk_register_interrupt_routing_model(void)
 			}
 		}
 	}
+	INFO("Using rkfiq sec cpu_context!\n");
+#else
+	INFO("Using opteed sec cpu_context!\n");
+#endif
 
 	/*
 	 * if set_interrupt_rm_flag(flags, NON_SECURE);
@@ -263,6 +278,10 @@ void rk_register_interrupt_routing_model(void)
 
 int32_t register_secfiq_handler(uint32_t id, interrupt_type_handler_t handler)
 {
+#ifndef PLAT_SKIP_OPTEE_S_EL1_INT_REGISTER
+	return SIP_RET_NOT_SUPPORTED;
+#endif
+
 	if (!rockchip_secure_interrupt_setup)
 		return SIP_RET_NOT_SUPPORTED;
 

@@ -1723,7 +1723,7 @@ int rockchip_soc_sys_pwr_dm_suspend(void)
 	uint32_t cfg = rk_cpuinfo.slp_cfg;
 
 	if (rk_cpuinfo.suspend_dbg_en)
-		console_init(UART_DBG_BASE,
+		console_init(RK3368_UART_DBG_BASE,
 			     RK3368_UART_CLOCK,
 			     RK3368_BAUDRATE);
 	putchar('\n');
@@ -1749,7 +1749,7 @@ int rockchip_soc_sys_pwr_dm_resume(void)
 	uint32_t pwrmd_com = mmio_read_32(PMU_BASE + PMU_PWRMD_COM);
 
 	if (pwrmd_com & BIT(pmu_mode_bus_pd))
-		console_init(UART_DBG_BASE,
+		console_init(RK3368_UART_DBG_BASE,
 			     RK3368_UART_CLOCK,
 			     RK3368_BAUDRATE);
 	putchar('f');

@@ -118,8 +118,16 @@ enum plls_id {
 #define CRU_CONS_GATEID(i)	(16 * (i))
 #define GATE_ID(reg, bit)	((reg * 16) + bit)
 
-#define PMU_RST_BY_SECOND_SFT	(BIT(1) << 2)
-#define PMU_RST_NOT_BY_SFT	(BIT(1) << 2)
+#define CRU_RST_TSADC_FIRST	BIT(0)
+#define CRU_RST_WTD_FIRST	BIT(1)
+
+#define CRU_RST_PMU_FIRST	(0x0 << 2)
+#define CRU_RST_PMU_SECOND	(0x1 << 2)
+#define CRU_RST_PMU_NOT		(0x2 << 2)
+#define CRU_RST_PMU_MSK		(0x3 << 2)
+
+#define CRU_RST_FIRST_TRIGER		(0xfdb9)
+#define CRU_RST_SECOND_TRIGER		(0xeca8)
 
 /***************************************************************************
  * pll
