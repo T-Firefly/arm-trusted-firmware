@@ -498,8 +498,10 @@ static void pmu_sleep_config(void)
 			BIT(PMU_DDRIO1_RET_EN) |
 			BIT(PMU_DDRIO_RET_HW_DE_REQ);
 
-	if (suspend_mode & RKPM_SLP_CENTER_PD)
+	if (suspend_mode & RKPM_SLP_CENTER_PD) {
 		config |= BIT(PMU_CENTER_PD_EN);
+		config &= ~(BIT(PMU_DDRIO_RET_HW_DE_REQ));
+	}
 
 	if (suspend_mode & RKPM_SLP_PLLPD)
 		config |= BIT(PMU_PLL_PD_EN);
