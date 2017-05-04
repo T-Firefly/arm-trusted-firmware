@@ -519,6 +519,9 @@ static void pmu_sleep_config(void)
 		mmio_write_32(PMU_BASE + PMU_OSC_CNT, CYCL_24M_CNT_MS(3));
 	}
 
+	if (wakeup_sources & BIT(PMU_USB_LINESTATE_WAKEUP_EN))
+		config &= ~(BIT(PMU_ALIVE_USE_LF));
+
 	mmio_write_32(PMU_BASE + PMU_WKUP_CFG4, wakeup_sources);
 	mmio_write_32(PMU_BASE + PMU_PWRMODE_CON, config);
 	INFO("PMU_MODE_CONG: 0x%x\n", config);

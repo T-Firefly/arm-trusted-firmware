@@ -199,6 +199,7 @@ enum pmu_wkup_cfg4 {
 	PMU_PWM_WKUP_EN,
 
 	PMU_PCIE_WKUP_EN = 13,
+	PMU_USB_LINESTATE_WAKEUP_EN,
 };
 
 enum pmu_pwrdn_con {
