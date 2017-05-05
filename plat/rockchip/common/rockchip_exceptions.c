@@ -173,11 +173,11 @@ static uint64_t gic_handle_except(uint32_t id,
 		}
 
 		if (irqnr < 16) {
+			plat_ic_end_of_interrupt(irqstat);
+
 			ret = gic_handle_ipi(irqnr, flags, handle, cookie);
 			if (ret == GIC_RET_ERRORID)
 				return 0;
-
-			plat_ic_end_of_interrupt(irqstat);
 			continue;
 		}
 		break;
