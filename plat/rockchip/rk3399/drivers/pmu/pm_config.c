@@ -42,6 +42,7 @@
 #include <rk3399_def.h>
 #include <rockchip_sip_svc.h>
 #include <soc.h>
+#include <uart_16550.h>
 
 #define PWM0_IOMUX_PWM_EN		(1 << 0)
 #define PWM1_IOMUX_PWM_EN		(1 << 1)
@@ -53,8 +54,17 @@ struct pwm_data_s {
 	uint32_t enable_bitmask;
 };
 
-static struct pwm_data_s pwm_data;
+struct uart_debug {
+	uint32_t uart_dll;
+	uint32_t uart_dlh;
+	uint32_t uart_ier;
+	uint32_t uart_fcr;
+	uint32_t uart_mcr;
+	uint32_t uart_lcr;
+};
 
+static struct pwm_data_s pwm_data;
+static struct uart_debug debug_port_save;
 static uint32_t suspend_mode;
 static uint32_t wakeup_sources;
 static uint32_t pwm_regulators;
@@ -447,6 +457,36 @@ static void gpio_power_suspend(void)
 	}
 }
 
+static void uart_debug_save(void)
+{
+	debug_port_save.uart_lcr = mmio_read_32(PLAT_RK_UART_BASE + UARTLCR);
+	debug_port_save.uart_ier = mmio_read_32(PLAT_RK_UART_BASE + UARTIER);
+	debug_port_save.uart_mcr = mmio_read_32(PLAT_RK_UART_BASE + UARTMCR);
+	mmio_write_32(PLAT_RK_UART_BASE + UARTLCR,
+		      debug_port_save.uart_lcr | UARTLCR_DLAB);
+	debug_port_save.uart_dll = mmio_read_32(PLAT_RK_UART_BASE + UARTDLL);
+	debug_port_save.uart_dlh = mmio_read_32(PLAT_RK_UART_BASE + UARTDLLM);
+	mmio_write_32(PLAT_RK_UART_BASE + UARTLCR, debug_port_save.uart_lcr);
+}
+
+void uart_debug_restore(void)
+{
+	uint32_t uart_lcr;
+
+	mmio_write_32(PLAT_RK_UART_BASE + UARTSRR,
+		      XMIT_FIFO_RESET | RCVR_FIFO_RESET | UART_RESET);
+
+	uart_lcr = mmio_read_32(PLAT_RK_UART_BASE + UARTLCR);
+	mmio_write_32(PLAT_RK_UART_BASE + UARTMCR, DIAGNOSTIC_MODE);
+	mmio_write_32(PLAT_RK_UART_BASE + UARTLCR, uart_lcr | UARTLCR_DLAB);
+	mmio_write_32(PLAT_RK_UART_BASE + UARTDLL, debug_port_save.uart_dll);
+	mmio_write_32(PLAT_RK_UART_BASE + UARTDLLM, debug_port_save.uart_dlh);
+	mmio_write_32(PLAT_RK_UART_BASE + UARTLCR, debug_port_save.uart_lcr);
+	mmio_write_32(PLAT_RK_UART_BASE + UARTIER, debug_port_save.uart_ier);
+	mmio_write_32(PLAT_RK_UART_BASE + UARTFCR, UARTFCR_FIFOEN);
+	mmio_write_32(PLAT_RK_UART_BASE + UARTMCR, debug_port_save.uart_mcr);
+}
+
 static void get_gpio_power_info(void)
 {
 	uint32_t i = 0;
@@ -687,9 +727,11 @@ static void pm_debug_info(void)
 
 void pmu_suspend_power(void)
 {
-	if (suspend_debug_enable)
+	if (suspend_debug_enable) {
+		uart_debug_save();
 		console_init(PLAT_RK_UART_BASE, PLAT_RK_UART_CLOCK,
 			     PLAT_RK_UART_BAUDRATE);
+	}
 	pm_debug_info();
 	pmu_sleep_config();
 
@@ -714,6 +756,8 @@ void pmu_resume_power(void)
 	udelay(300);
 	enable_dvfs_plls();
 	report_wakeup_source();
-	if (suspend_debug_enable)
+	if (suspend_debug_enable) {
 		console_uninit();
+		uart_debug_restore();
+	}
 }
