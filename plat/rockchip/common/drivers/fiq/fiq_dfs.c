@@ -80,8 +80,10 @@ void fiq_dfs_prefetch(void (*prefetch_fn)(void))
 	size_t sram_size;
 	unsigned long start, end, n;
 
+#ifndef PLAT_SKIP_DFS_TLB_DCACHE_MAINTENANCE
 	/* invalidate tlb */
 	tlbialle3();
+#endif
 
 	/* prefetch sram text section */
 	sram_size = (char *)&__bl31_sram_text_end -
@@ -150,11 +152,13 @@ static uint64_t fiq_cpu_stop_handler(uint32_t id,
 	cpu_daif[cpu] = read_daif();
 	write_daifset(DISABLE_ALL_EXCEPTIONS);
 
+#ifndef PLAT_SKIP_DFS_TLB_DCACHE_MAINTENANCE
 	/* flush dcache */
 	dcsw_op_level1(DCCISW);
 	dcsw_op_level2(DCCISW);
 	/* necessary! invalidate tlb of el3 */
 	tlbialle3();
+#endif
 	dsb();
 	isb();
 	/* set sp to sram */
@@ -222,8 +226,12 @@ static int mcu_dfs_request_handler(uint32_t irqstat, uint32_t flags,
 {
 	/* don't have to wait cpus wfe, MCU will do that */
 	fiq_dfs_stop_cpus();
+
+#ifndef PLAT_SKIP_DFS_TLB_DCACHE_MAINTENANCE
 	fiq_dfs_flush_l1();
 	fiq_dfs_flush_l2();
+#endif
+
 	fiq_dfs_prefetch(NULL);
 
 #if USE_COHERENT_MEM
