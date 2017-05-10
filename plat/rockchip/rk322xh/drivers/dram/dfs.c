@@ -72,6 +72,7 @@ struct set_rate_rel_timing {
 	uint32_t phyreg0a;
 	uint32_t phyreg0c;
 	uint32_t odt;
+	uint32_t mr11;
 };
 
 struct rk3328_ddr_sram_param {
@@ -923,6 +924,7 @@ static void gen_lpddr3_params(struct timing_related_config *timing_config,
 	timing->dfitmg0 = (7 << 24) |
 				(((pdram_timing->cl - 2) / 2) << 16) |
 				((pdram_timing->cwl - 2) / 2);
+	timing->mr11 = pdram_timing->mr11;
 }
 
 static void gen_noc_params(struct timing_related_config *timing_config,
@@ -1630,14 +1632,18 @@ __sramfunc void ddr_set_rate_sram(uint32_t mhz, uint32_t dest_mode,
 	cur_mode = (~dest_mode) & 1;
 	timing = &(p_sram_param->timing[dest_mode]);
 	init3 = mmio_read_32(UMCTL2_REGS_FREQ(cur_mode) + DDR_PCTL2_INIT3);
-	if (((init3 & 1) == 0) && ((timing->init3 & 1) == 0))
+	if (dramtype == LPDDR3) {
 		dll_mode = DLL_ON_2_ON;
-	else if (((init3 & 1) == 0) && ((timing->init3 & 1) == 1))
-		dll_mode = DLL_ON_2_OFF;
-	else if (((init3 & 1) == 1) && ((timing->init3 & 1) == 0))
-		dll_mode = DLL_OFF_2_ON;
-	else
-		dll_mode = DLL_OFF_2_OFF;
+	} else {
+		if (((init3 & 1) == 0) && ((timing->init3 & 1) == 0))
+			dll_mode = DLL_ON_2_ON;
+		else if (((init3 & 1) == 0) && ((timing->init3 & 1) == 1))
+			dll_mode = DLL_ON_2_OFF;
+		else if (((init3 & 1) == 1) && ((timing->init3 & 1) == 0))
+			dll_mode = DLL_OFF_2_ON;
+		else
+			dll_mode = DLL_OFF_2_OFF;
+	}
 
 	pwrctl = mmio_read_32(DDRC_BASE_ADDR + DDR_PCTL2_PWRCTL);
 	mmio_write_32(DDRC_BASE_ADDR + DDR_PCTL2_PWRCTL, 0);
@@ -1686,14 +1692,18 @@ __sramfunc void ddr_set_rate_sram(uint32_t mhz, uint32_t dest_mode,
 	}
 	/* MRS disable RTT_NOM */
 	/* MRS disable RTT_WR */
-	write_mr(3, 1, init3 & ~DDR3_RTT_NOM_MASK,
-		 dramtype);
-	if (dll_mode == DLL_ON_2_OFF) {
-		/* MRS disable RTT_NOM */
-		/* MRS disable RTT_WR */
-		/* MRS disable RTT_PARK */
-		/* MRS disable DLL */
-		write_mr(3, 1, init3 | DDR3_DLL_DISABLE, dramtype);
+	if (dramtype == LPDDR3) {
+		write_mr(3, 11, 0, dramtype);
+	} else {
+		write_mr(3, 1, init3 & ~DDR3_RTT_NOM_MASK,
+			 dramtype);
+		if (dll_mode == DLL_ON_2_OFF) {
+			/* MRS disable RTT_NOM */
+			/* MRS disable RTT_WR */
+			/* MRS disable RTT_PARK */
+			/* MRS disable DLL */
+			write_mr(3, 1, init3 | DDR3_DLL_DISABLE, dramtype);
+		}
 	}
 	/* write MR6 for DDR4 tDLLK */
 	if (dramtype == DDR4)
@@ -1813,38 +1823,51 @@ __sramfunc void ddr_set_rate_sram(uint32_t mhz, uint32_t dest_mode,
 	mmio_write_32(PHY_REG(0xA), timing->phyreg0a);
 	mmio_write_32(PHY_REG(0xC), timing->phyreg0c);
 	/* send MRS/MRW here */
-	if (dll_mode == DLL_OFF_2_ON) {
-		/* MRS to enable DLL */
-		write_mr(3, 1, timing->init3 & PCTL2_MR_MASK,
-			 dramtype);
-		/* MRS to reset DLL */
-		write_mr(3, 0, (timing->init3 >> PCTL2_MR0_SHIFT) &
+	if (dramtype == LPDDR3) {
+		write_mr(3, 1, (timing->init3 >> PCTL2_LPDDR3_MR1_SHIFT) &
 			 PCTL2_MR_MASK,
 			 dramtype);
-		sram_udelay(2);
-		/* MRS other MR */
-		/* MRS re-enable RTT_NOM */
-		/* MRS re-enable RTT_PARK */
+		write_mr(3, 2, timing->init3 & PCTL2_MR_MASK,
+			 dramtype);
+		write_mr(3, 3, (timing->init4 >> PCTL2_LPDDR3_MR3_SHIFT) &
+			 PCTL2_MR_MASK,
+			 dramtype);
+		write_mr(3, 11, timing->mr11, dramtype);
 	} else {
-		/* MRS other MR */
-		write_mr(3, 1, timing->init3 & PCTL2_MR_MASK,
-			 dramtype);
-		write_mr(3, 0, (timing->init3 >> PCTL2_MR0_SHIFT) &
+		if (dll_mode == DLL_OFF_2_ON) {
+			/* MRS to enable DLL */
+			write_mr(3, 1, timing->init3 & PCTL2_MR_MASK,
+				 dramtype);
+			/* MRS to reset DLL */
+			write_mr(3, 0, (timing->init3 >> PCTL2_MR0_SHIFT) &
+				 PCTL2_MR_MASK,
+				 dramtype);
+			sram_udelay(2);
+			/* MRS other MR */
+			/* MRS re-enable RTT_NOM */
+			/* MRS re-enable RTT_PARK */
+		} else {
+			/* MRS other MR */
+			write_mr(3, 1, timing->init3 & PCTL2_MR_MASK,
+				 dramtype);
+			write_mr(3, 0, (timing->init3 >> PCTL2_MR0_SHIFT) &
+				 PCTL2_MR_MASK,
+				 dramtype);
+		}
+		write_mr(3, 2, (timing->init4 >> PCTL2_MR2_SHIFT) &
 			 PCTL2_MR_MASK,
 			 dramtype);
-	}
-	write_mr(3, 2, (timing->init4 >> PCTL2_MR2_SHIFT) & PCTL2_MR_MASK,
-		 dramtype);
-	if (dramtype == DDR4) {
-		write_mr(3, 3, timing->init4 & PCTL2_MR_MASK,
-			 dramtype);
-		write_mr(3, 4, (timing->init6 >> PCTL2_MR4_SHIFT) &
-			 PCTL2_MR_MASK,
-			 dramtype);
-		write_mr(3, 5, timing->init6 & PCTL2_MR_MASK,
-			 dramtype);
-		write_mr(3, 6, timing->init7 & PCTL2_MR_MASK,
-			 dramtype);
+		if (dramtype == DDR4) {
+			write_mr(3, 3, timing->init4 & PCTL2_MR_MASK,
+				 dramtype);
+			write_mr(3, 4, (timing->init6 >> PCTL2_MR4_SHIFT) &
+				 PCTL2_MR_MASK,
+				 dramtype);
+			write_mr(3, 5, timing->init6 & PCTL2_MR_MASK,
+				 dramtype);
+			write_mr(3, 6, timing->init7 & PCTL2_MR_MASK,
+				 dramtype);
+		}
 	}
 	/* PHY training */
 	if (data_training(0, dramtype))
