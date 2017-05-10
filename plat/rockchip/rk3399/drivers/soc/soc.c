@@ -485,4 +485,6 @@ void plat_rockchip_soc_init(void)
 	m0_init();
 	dram_init();
 	dram_dfs_init();
+	NOTICE("BL31: Rockchip release version: v%d.%d\n",
+	       MAJOR_VERSION, MINOR_VERSION);
 }

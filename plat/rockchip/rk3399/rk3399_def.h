@@ -31,6 +31,9 @@
 #ifndef __PLAT_DEF_H__
 #define __PLAT_DEF_H__
 
+#define MAJOR_VERSION		(1)
+#define MINOR_VERSION		(2)
+
 #define RK3399_PRIMARY_CPU	0x0
 
 /* Special value used to verify platform parameters from BL2 to BL3-1 */
