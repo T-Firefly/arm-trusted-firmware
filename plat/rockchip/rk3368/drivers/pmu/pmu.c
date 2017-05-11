@@ -491,6 +491,16 @@ static void nonboot_cpus_off(void)
 	}
 }
 
+void rk3368_cpu_pwr_dm_off(uint32_t target_idx)
+{
+	uint32_t cluster, cpu;
+
+	cluster = target_idx >= PLATFORM_CLUSTER0_CORE_COUNT ? 1 : 0;
+	cpu = cluster ? target_idx - PLATFORM_CLUSTER0_CORE_COUNT : target_idx;
+
+	cpus_id_power_domain(cluster, cpu, pmu_pd_off, CKECK_WFEI_MSK);
+}
+
 int rockchip_soc_cores_pwr_dm_on(unsigned long mpidr,
 				 uint64_t entrypoint)
 {

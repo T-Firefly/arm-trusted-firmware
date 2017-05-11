@@ -239,6 +239,10 @@ int psci_cpu_off(void)
 	return rc;
 }
 
+#ifdef PLAT_rk3368
+extern void rk3368_cpu_pwr_dm_off(uint32_t target_idx);
+#endif
+
 int psci_affinity_info(u_register_t target_affinity,
 		       unsigned int lowest_affinity_level)
 {
@@ -252,7 +256,9 @@ int psci_affinity_info(u_register_t target_affinity,
 	target_idx = plat_core_pos_by_mpidr(target_affinity);
 	if (target_idx == -1)
 		return PSCI_E_INVALID_PARAMS;
-
+#ifdef PLAT_rk3368
+	rk3368_cpu_pwr_dm_off(target_idx);
+#endif
 	return psci_get_aff_info_state_by_idx(target_idx);
 }
 
