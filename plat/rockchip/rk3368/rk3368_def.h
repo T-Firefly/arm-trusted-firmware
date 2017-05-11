@@ -31,8 +31,8 @@
 #ifndef __PLAT_DEF_H__
 #define __PLAT_DEF_H__
 
-#define MAJOR_VERSION		(1)
-#define MINOR_VERSION		(3)
+#define MAJOR_VERSION		(2)
+#define MINOR_VERSION		(1)
 
 /* Special value used to verify platform parameters from BL2 to BL3-1 */
 #define RK_BL31_PLAT_PARAM_VAL	0x0f1e2d3c4b5a6978ULL
