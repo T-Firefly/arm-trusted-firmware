@@ -43,6 +43,7 @@
 #include <rockchip_exceptions.h>
 #include <rockchip_sip_svc.h>
 #include <soc.h>
+#include <uart.h>
 
 struct rksoc_cpu_info_s {
 	uint32_t slp_cfg;
@@ -1732,10 +1733,16 @@ int rockchip_soc_sys_pwr_dm_suspend(void)
 {
 	uint32_t cfg = rk_cpuinfo.slp_cfg;
 
-	if (rk_cpuinfo.suspend_dbg_en)
-		console_init(RK3368_UART_DBG_BASE,
-			     RK3368_UART_CLOCK,
-			     RK3368_BAUDRATE);
+	if ((rk_cpuinfo.suspend_dbg_en) ||
+	    (rk_cpuinfo.slp_cfg  & SLP_ARMOFF_LOGPD) ||
+	    (rk_cpuinfo.slp_cfg  & SLP_ARMOFF_LOGOFF)) {
+		rockchip_uart_debug_save();
+		if ((rk_cpuinfo.suspend_dbg_en))
+			console_init(RK3368_UART_DBG_BASE,
+				     RK3368_UART_CLOCK,
+				     RK3368_BAUDRATE);
+	}
+
 	putchar('\n');
 	dbg_pm_dump_inten();
 	dbg_pmu_sleep_enter_info(cfg);
@@ -1773,8 +1780,11 @@ int rockchip_soc_sys_pwr_dm_resume(void)
 
 	dbg_pmu_resume_info();
 
-	if (rk_cpuinfo.suspend_dbg_en)
+	if ((rk_cpuinfo.suspend_dbg_en) ||
+	    (pwrmd_com & BIT(pmu_mode_bus_pd))) {
 		console_uninit();
+		rockchip_uart_debug_restore();
+	}
 
 	return 0;
 }
