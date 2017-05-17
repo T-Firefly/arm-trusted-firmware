@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016, Fuzhou Rockchip Electronics Co., Ltd.
+ * Copyright (C) 2017, Fuzhou Rockchip Electronics Co., Ltd.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, ARM Limited and Contributors. All rights reserved.
+ * Copyright (c) 2017, ARM Limited and Contributors. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -71,6 +71,7 @@ struct  ddr_dts_config_timing {
 	unsigned int phy_dll_dis_freq;
 
 	unsigned int ddr3_odt_dis_freq;
+	unsigned int phy_ddr3_odt_dis_freq;
 	unsigned int ddr3_drv;
 	unsigned int ddr3_odt;
 	unsigned int phy_ddr3_ca_drv;
@@ -79,6 +80,7 @@ struct  ddr_dts_config_timing {
 	unsigned int phy_ddr3_odt;
 
 	unsigned int lpddr3_odt_dis_freq;
+	unsigned int phy_lpddr3_odt_dis_freq;
 	unsigned int lpddr3_drv;
 	unsigned int lpddr3_odt;
 	unsigned int phy_lpddr3_ca_drv;
@@ -87,6 +89,7 @@ struct  ddr_dts_config_timing {
 	unsigned int phy_lpddr3_odt;
 
 	unsigned int lpddr4_odt_dis_freq;
+	unsigned int phy_lpddr4_odt_dis_freq;
 	unsigned int lpddr4_drv;
 	unsigned int lpddr4_dq_odt;
 	unsigned int lpddr4_ca_odt;
@@ -96,6 +99,7 @@ struct  ddr_dts_config_timing {
 	unsigned int phy_lpddr4_odt;
 
 	unsigned int ddr4_odt_dis_freq;
+	unsigned int phy_ddr4_odt_dis_freq;
 	unsigned int ddr4_drv;
 	unsigned int ddr4_odt;
 	unsigned int phy_ddr4_ca_drv;
@@ -122,7 +126,7 @@ struct drv_odt_lp_config {
 	uint32_t auto_sr_dis_freq;
 	uint32_t dram_dll_dis_freq;/* for ddr3, ddr4 only */
 	uint32_t phy_dll_dis_freq;
-	uint32_t odt_dis_freq;
+	uint32_t dram_odt_dis_freq;
 
 	uint32_t dram_side_drv;
 	uint32_t dram_side_dq_odt;
@@ -132,6 +136,7 @@ struct drv_odt_lp_config {
 	uint32_t phy_side_ck_cs_drv;
 	uint32_t phy_side_dq_drv;
 	uint32_t phy_side_odt;
+	uint32_t phy_side_odt_dis_freq;
 };
 
 void ddr_dfs_init(uint32_t page_type);

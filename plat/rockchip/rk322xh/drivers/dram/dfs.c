@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2016, ARM Limited and Contributors. All rights reserved.
+ * Copyright (C) 2017, Fuzhou Rockchip Electronics Co., Ltd.
+ * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -10,10 +11,6 @@
  * Redistributions in binary form must reproduce the above copyright notice,
  * this list of conditions and the following disclaimer in the documentation
  * and/or other materials provided with the distribution.
- *
- * Neither the name of ARM nor the names of its contributors may be used
- * to endorse or promote products derived from this software without specific
- * prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -71,7 +68,7 @@ struct set_rate_rel_timing {
 
 	uint32_t phyreg0a;
 	uint32_t phyreg0c;
-	uint32_t odt;
+	uint32_t phy_odt;
 	uint32_t mr11;
 };
 
@@ -80,6 +77,7 @@ struct rk3328_ddr_sram_param {
 	struct rk3328_sdram_channel ch;
 	uint32_t dramtype;
 	struct drv_odt_lp_config drv_odt_lp_cfg;
+	uint32_t sr_idle_en;
 	/* tmp value used in scale frequency */
 	uint64_t save_sp;
 	uint32_t wait_flag0;
@@ -117,17 +115,16 @@ struct rk3328_ddr_param {
 	struct dram_timing_t dram_timing;
 };
 
-struct init_params {
+static struct rk3328_ddr_param dram_param;
+
+struct share_params {
 	/* these parameters, not use in RK322xh */
 	uint32_t hz;
 	uint32_t lcdc_type;
 	uint32_t vop;
+	uint32_t vop_dclk_mode;
+	uint32_t sr_idle_en;
 	uint32_t addr_mcu_el3;
-	/* if need, add parameter after */
-};
-
-struct set_rate_params {
-	uint32_t hz;
 	/*
 	 * 1: need to wait flag1
 	 * 0: never wait flag1
@@ -138,23 +135,8 @@ struct set_rate_params {
 	 * 0: never wait flag1
 	 */
 	uint32_t wait_flag0;
-	/* these parameters, not use in RK322xh */
-	uint32_t lcdc_type;
-	uint32_t vop;
 	/* if need, add parameter after */
 };
-
-struct round_rate_params {
-	uint32_t hz;
-	/* if need, add parameter after */
-};
-
-struct set_at_sr_params {
-	uint32_t en;
-	/* if need, add parameter after */
-};
-
-static struct rk3328_ddr_param dram_param;
 
 static struct ddr_dts_config_timing dts_parameter = {
 	.available = 0
@@ -179,7 +161,7 @@ static struct drv_odt_lp_config ddr3_drv_odt_default_config = {
 	.auto_sr_dis_freq = 800,
 	.dram_dll_dis_freq = 300,
 	.phy_dll_dis_freq = 400,
-	.odt_dis_freq = 666,
+	.dram_odt_dis_freq = 666,
 
 	.dram_side_drv = 40,
 	.dram_side_dq_odt = 120,
@@ -189,6 +171,7 @@ static struct drv_odt_lp_config ddr3_drv_odt_default_config = {
 	.phy_side_ck_cs_drv = 45,
 	.phy_side_dq_drv = 34,
 	.phy_side_odt = 225,
+	.phy_side_odt_dis_freq = 666,
 };
 
 static struct sdram_default_config lpddr3_default_config = {
@@ -210,7 +193,7 @@ static struct drv_odt_lp_config lpddr3_drv_odt_default_config = {
 	.auto_sr_dis_freq = 800,
 	.dram_dll_dis_freq = 300,
 	.phy_dll_dis_freq = 400,
-	.odt_dis_freq = 666,
+	.dram_odt_dis_freq = 666,
 
 	.dram_side_drv = 40,
 	.dram_side_dq_odt = 240,
@@ -220,6 +203,7 @@ static struct drv_odt_lp_config lpddr3_drv_odt_default_config = {
 	.phy_side_ck_cs_drv = 43,
 	.phy_side_dq_drv = 34,
 	.phy_side_odt = 240,
+	.phy_side_odt_dis_freq = 666,
 };
 
 static struct sdram_default_config ddr4_default_config = {
@@ -242,7 +226,7 @@ static struct drv_odt_lp_config ddr4_drv_odt_default_config = {
 	.auto_sr_dis_freq = 800,
 	.dram_dll_dis_freq = 625,
 	.phy_dll_dis_freq = 400,
-	.odt_dis_freq = 666,
+	.dram_odt_dis_freq = 666,
 
 	.dram_side_drv = 34,
 	.dram_side_dq_odt = 240,
@@ -252,6 +236,7 @@ static struct drv_odt_lp_config ddr4_drv_odt_default_config = {
 	.phy_side_ck_cs_drv = 43,
 	.phy_side_dq_drv = 34,
 	.phy_side_odt = 240,
+	.phy_side_odt_dis_freq = 666,
 };
 
 static inline void rockchip_en_el3_abort(void)
@@ -378,17 +363,19 @@ static void drv_odt_lp_cfg_init(uint32_t dram_type,
 	switch (dram_type) {
 	case DDR3:
 		if ((dts_timing) && (dts_timing->available)) {
-			drv_config->odt_dis_freq =
-			    dts_timing->ddr3_odt_dis_freq;
+			drv_config->dram_odt_dis_freq =
+				dts_timing->ddr3_odt_dis_freq;
 			drv_config->dram_side_drv = dts_timing->ddr3_drv;
 			drv_config->dram_side_dq_odt = dts_timing->ddr3_odt;
 			drv_config->phy_side_ca_drv =
-			    dts_timing->phy_ddr3_ca_drv;
+				dts_timing->phy_ddr3_ca_drv;
 			drv_config->phy_side_ck_cs_drv =
-			    dts_timing->phy_ddr3_ck_drv;
+				dts_timing->phy_ddr3_ck_drv;
 			drv_config->phy_side_dq_drv =
-			    dts_timing->phy_ddr3_dq_drv;
+				dts_timing->phy_ddr3_dq_drv;
 			drv_config->phy_side_odt = dts_timing->phy_ddr3_odt;
+			drv_config->phy_side_odt_dis_freq =
+				dts_timing->phy_ddr3_odt_dis_freq;
 		} else {
 			memcpy(drv_config, &ddr3_drv_odt_default_config,
 			       sizeof(struct drv_odt_lp_config));
@@ -396,17 +383,19 @@ static void drv_odt_lp_cfg_init(uint32_t dram_type,
 		break;
 	case LPDDR3:
 		if ((dts_timing) && (dts_timing->available)) {
-			drv_config->odt_dis_freq =
-			    dts_timing->lpddr3_odt_dis_freq;
+			drv_config->dram_odt_dis_freq =
+				dts_timing->lpddr3_odt_dis_freq;
 			drv_config->dram_side_drv = dts_timing->lpddr3_drv;
 			drv_config->dram_side_dq_odt = dts_timing->lpddr3_odt;
 			drv_config->phy_side_ca_drv =
-			    dts_timing->phy_lpddr3_ca_drv;
+				dts_timing->phy_lpddr3_ca_drv;
 			drv_config->phy_side_ck_cs_drv =
-			    dts_timing->phy_lpddr3_ck_drv;
+				dts_timing->phy_lpddr3_ck_drv;
 			drv_config->phy_side_dq_drv =
-			    dts_timing->phy_lpddr3_dq_drv;
+				dts_timing->phy_lpddr3_dq_drv;
 			drv_config->phy_side_odt = dts_timing->phy_lpddr3_odt;
+			drv_config->phy_side_odt_dis_freq =
+				dts_timing->phy_lpddr3_odt_dis_freq;
 
 		} else {
 			memcpy(drv_config, &lpddr3_drv_odt_default_config,
@@ -416,17 +405,19 @@ static void drv_odt_lp_cfg_init(uint32_t dram_type,
 	case DDR4:
 	default:
 		if ((dts_timing) && (dts_timing->available)) {
-			drv_config->odt_dis_freq =
-			    dts_timing->ddr4_odt_dis_freq;
+			drv_config->dram_odt_dis_freq =
+				dts_timing->ddr4_odt_dis_freq;
 			drv_config->dram_side_drv = dts_timing->ddr4_drv;
 			drv_config->dram_side_dq_odt = dts_timing->ddr4_odt;
 			drv_config->phy_side_ca_drv =
-			    dts_timing->phy_ddr4_ca_drv;
+				dts_timing->phy_ddr4_ca_drv;
 			drv_config->phy_side_ck_cs_drv =
-			    dts_timing->phy_ddr4_ck_drv;
+				dts_timing->phy_ddr4_ck_drv;
 			drv_config->phy_side_dq_drv =
-			    dts_timing->phy_ddr4_dq_drv;
+				dts_timing->phy_ddr4_dq_drv;
 			drv_config->phy_side_odt = dts_timing->phy_ddr4_odt;
+			drv_config->phy_side_odt_dis_freq =
+				dts_timing->phy_ddr4_odt_dis_freq;
 		} else {
 			memcpy(drv_config, &ddr4_drv_odt_default_config,
 			       sizeof(struct drv_odt_lp_config));
@@ -479,7 +470,7 @@ static void dram_param_init(struct rk3328_ddr_sram_param *p_sram_param,
 	p_dram_param->index_freq[dest_mode] = 0;
 
 	ptiming_config->dram_info[0].speed_rate =
-	    p_sram_param->drv_odt_lp_cfg.ddr_speed_bin;
+		p_sram_param->drv_odt_lp_cfg.ddr_speed_bin;
 	ptiming_config->dram_info[0].cs_cnt = p_sram_param->ch.rank;
 	for (j = 0; j < p_sram_param->ch.rank; j++) {
 		ptiming_config->dram_info[0].per_die_capability[j] =
@@ -689,7 +680,8 @@ __sramfunc void update_refresh_reg(void)
 		      (1 << 1));
 }
 
-static __sramfunc void phy_dll_bypass_set(uint32_t mhz)
+static __sramfunc void phy_dll_bypass_set(struct rk3328_ddr_sram_param *p_sram_param,
+					  uint32_t mhz)
 {
 	uint32_t tmp;
 
@@ -704,7 +696,7 @@ static __sramfunc void phy_dll_bypass_set(uint32_t mhz)
 	mmio_setbits_32(PHY_REG(0x56), PHY_DQ_DLL_BYPASS_90);
 	mmio_clrbits_32(PHY_REG(0x57), PHY_DQS_DLL_BYPASS_90);
 
-	if (mhz <= PHY_DLL_BYPASS_FREQ)
+	if (mhz <= p_sram_param->drv_odt_lp_cfg.phy_dll_dis_freq)
 		/* DLL bypass */
 		mmio_setbits_32(PHY_REG(0xa4), PHY_DLL_BYPASS_MODE);
 	else
@@ -1021,7 +1013,7 @@ static __sramfunc void ddr_update_odt(struct rk3328_ddr_sram_param *p_sram_param
 	mmio_write_32(PHY_REG(0x50), drv_odt_lp_cfg->phy_side_dq_drv);
 	mmio_write_32(PHY_REG(0x5f), drv_odt_lp_cfg->phy_side_dq_drv);
 	/* ODT */
-	if (p_sram_param->timing[dest_mode].odt) {
+	if (p_sram_param->timing[dest_mode].phy_odt) {
 		mmio_write_32(PHY_REG(0x21), drv_odt_lp_cfg->phy_side_odt);
 		mmio_write_32(PHY_REG(0x2e), drv_odt_lp_cfg->phy_side_odt);
 		mmio_write_32(PHY_REG(0x31), drv_odt_lp_cfg->phy_side_odt);
@@ -1062,8 +1054,12 @@ static void ddr_update_skew(struct ddr_dts_config_timing *dts_timing)
 		mmio_write_32(PHY_REG(0xc0 + n), dts_timing->cs1_skew[n]);
 }
 
-static void ddr_sram_param_init(struct rk3328_ddr_sram_param *p_sram_param,
-				struct ddr_dts_config_timing *dts_timing)
+/*
+ * input : dts_timing
+ * output : p_sram_param
+ */
+static void ddr_sram_param_init(struct ddr_dts_config_timing *dts_timing,
+				struct rk3328_ddr_sram_param *p_sram_param)
 {
 	uint32_t os_reg2_val;
 	struct rk3328_sdram_channel *ch = &p_sram_param->ch;
@@ -1088,9 +1084,12 @@ static void ddr_sram_param_init(struct rk3328_ddr_sram_param *p_sram_param,
 	       sizeof(p_sram_param->sram_sp));
 	p_sram_param->set_rate_delay = 0;
 	p_sram_param->stop_cpu_delay = 0;
+	p_sram_param->sr_idle_en = 0;
 }
 
-static void ddr_related_init(struct ddr_dts_config_timing *dts_timing)
+/* input : dts_timing, p_sram_param */
+static void ddr_related_init(struct ddr_dts_config_timing *dts_timing,
+			     struct rk3328_ddr_sram_param *p_sram_param)
 {
 	/* init other */
 	mmio_write_32(GRF_BASE + GRF_SOC_CON(5), OTHER_MASTER_STALL_RESPONSE);
@@ -1100,8 +1099,12 @@ static void ddr_related_init(struct ddr_dts_config_timing *dts_timing)
 	/* need to update drv,odt,low power mode here */
 	/*
 	ddr_update_odt();
-	dram_low_power_config(&rk3399_dram_status.drv_odt_lp_cfg);
 	*/
+	/*
+	 * pd_idle, sr_idle never update here
+	 * because these setting is static, in other words
+	 * upctl2 not support modify these setting after start
+	 */
 	VERBOSE("ddr_update_skew\n");
 	ddr_update_skew(dts_timing);
 }
@@ -1158,11 +1161,11 @@ static void pre_set_rate(uint32_t mhz, uint32_t dest_mode,
 	struct set_rate_rel_timing *timing = &(p_sram_param->timing[dest_mode]);
 
 	dram_param.timing_config.freq = mhz;
-	if (mhz < p_sram_param->drv_odt_lp_cfg.dram_dll_dis_freq)
+	if (mhz <= p_sram_param->drv_odt_lp_cfg.dram_dll_dis_freq)
 		dram_param.timing_config.dllbp = 1;
 	else
 		dram_param.timing_config.dllbp = 0;
-	if (mhz < p_sram_param->drv_odt_lp_cfg.odt_dis_freq) {
+	if (mhz <= p_sram_param->drv_odt_lp_cfg.dram_odt_dis_freq) {
 		dram_param.timing_config.odt = 0;
 		dram_param.timing_config.dramodt = 0;
 	} else {
@@ -1170,12 +1173,16 @@ static void pre_set_rate(uint32_t mhz, uint32_t dest_mode,
 		dram_param.timing_config.dramodt =
 			p_sram_param->drv_odt_lp_cfg.dram_side_dq_odt;
 	}
+	if (mhz <= p_sram_param->drv_odt_lp_cfg.phy_side_odt_dis_freq)
+		timing->phy_odt = 0;
+	else
+		timing->phy_odt = 1;
+
 	dram_get_parameter(&dram_param.timing_config, &dram_param.dram_timing);
 	gen_rk3328_ddr_params(&dram_param.timing_config,
 			      &dram_param.dram_timing,
 			      p_sram_param->ch.bw,
 			      timing);
-	timing->odt = dram_param.timing_config.odt;
 
 	dram_param.index_freq[dest_mode] = mhz;
 }
@@ -1215,18 +1222,20 @@ static void post_set_rate(uint32_t mhz, uint32_t dest_mode,
 	dram_param.current_index = dest_mode;
 
 	if (mhz < p_sram_param->drv_odt_lp_cfg.auto_pd_dis_freq)
-		mmio_clrbits_32(DDRC_BASE_ADDR + DDR_PCTL2_PWRCTL,
+		mmio_setbits_32(DDRC_BASE_ADDR + DDR_PCTL2_PWRCTL,
 				PCTL2_POWERDOWN_EN);
 	else if (mmio_read_32(DDRC_BASE_ADDR + DDR_PCTL2_PWRTMG) &
 				PCTL2_POWERDOWN_TO_X32_MASK)
-		mmio_setbits_32(DDRC_BASE_ADDR + DDR_PCTL2_PWRCTL,
-				PCTL2_POWERDOWN_EN);
-	if (mhz < p_sram_param->drv_odt_lp_cfg.auto_sr_dis_freq)
 		mmio_clrbits_32(DDRC_BASE_ADDR + DDR_PCTL2_PWRCTL,
+				PCTL2_POWERDOWN_EN);
+	if (p_sram_param->sr_idle_en &&
+	    (mhz < p_sram_param->drv_odt_lp_cfg.auto_sr_dis_freq))
+		mmio_setbits_32(DDRC_BASE_ADDR + DDR_PCTL2_PWRCTL,
 				PCTL2_SELFREF_EN);
 	else if (mmio_read_32(DDRC_BASE_ADDR + DDR_PCTL2_PWRTMG) &
-				PCTL2_SELFREF_TO_X32_MASK)
-		mmio_setbits_32(DDRC_BASE_ADDR + DDR_PCTL2_PWRCTL,
+				(PCTL2_SELFREF_TO_X32_MASK <<
+				 PCTL2_SELFREF_TO_X32_SHIFT))
+		mmio_clrbits_32(DDRC_BASE_ADDR + DDR_PCTL2_PWRCTL,
 				PCTL2_SELFREF_EN);
 }
 
@@ -1532,7 +1541,7 @@ static uint32_t check_vop_flag0_gone(void)
  * return 0: never wait flag0, direct scale frequency
  * return 1: need to wait flag0 in scale frequency sram function
  */
-static uint32_t wait_vop_vbank(struct set_rate_params *p)
+static uint32_t wait_vop_vbank(struct share_params *p)
 {
 	uint32_t wait_flag0 = 0;
 
@@ -1772,7 +1781,7 @@ __sramfunc void ddr_set_rate_sram(uint32_t mhz, uint32_t dest_mode,
 	 * PHY soft reset
 	 * CL,CWL,bypass
 	 */
-	phy_dll_bypass_set(mhz);
+	phy_dll_bypass_set(p_sram_param, mhz);
 	/* soft de-reset analog logic */
 	mmio_setbits_32(PHY_REG(0), PHY_ANALOG_DERESET);
 	sram_udelay(5);
@@ -1901,15 +1910,15 @@ __sramfunc void ddr_set_rate_sram(uint32_t mhz, uint32_t dest_mode,
 uint32_t ddr_get_rate(void)
 {
 	if (mmio_read_32(PHY_REG(0xef)) & (1 << 7))
-		return (get_phypll() * MHz) / 2;
+		return (get_phypll() * MHZ) / 2;
 	else
-		return (get_dpll() * MHz) / 2;
+		return (get_dpll() * MHZ) / 2;
 }
 
 uint32_t ddr_set_rate(uint32_t page_type)
 {
 	uint64_t base_addr;
-	struct set_rate_params *p;
+	struct share_params *p;
 	uint32_t mhz;
 	uint32_t dest_mode;
 	uint64_t daif;
@@ -1919,16 +1928,16 @@ uint32_t ddr_set_rate(uint32_t page_type)
 	if (0 != share_mem_type2page_base(page_type, &base_addr))
 		goto err;
 
-	p = (struct set_rate_params *)base_addr;
+	p = (struct share_params *)base_addr;
 	VERBOSE("base_addr:%lx, hz=%d\n", base_addr, p->hz);
-	if (p->hz < MHz) {
+	if (p->hz < MHZ) {
 		if (p->hz < 786)
 			goto err;
 		mhz = p->hz;
 	} else {
-		if (p->hz < (786 * MHz))
+		if (p->hz < (786 * MHZ))
 			goto err;
-		mhz = p->hz / MHz;
+		mhz = p->hz / MHZ;
 	}
 
 	dest_mode = (~(dram_param.current_index)) & 1;
@@ -1975,10 +1984,10 @@ uint32_t ddr_set_rate(uint32_t page_type)
 		(sram_param.set_rate_end - sram_param.set_rate_start) / 24,
 		 sram_param.set_rate_delay / 24);
 
-	if (p->hz < MHz)
+	if (p->hz < MHZ)
 		return mhz;
 	else
-		return mhz * MHz;
+		return mhz * MHZ;
 err:
 	return 0;
 }
@@ -1987,23 +1996,23 @@ uint32_t ddr_round_rate(uint32_t page_type)
 {
 	uint64_t base_addr;
 	uint32_t ret;
-	struct round_rate_params *p;
+	struct share_params *p;
 
 	if (page_type != SHARE_PAGE_TYPE_DDR)
 		goto err;
 	if (0 != share_mem_type2page_base(page_type, &base_addr))
 		goto err;
-	p = (struct round_rate_params *)base_addr;
+	p = (struct share_params *)base_addr;
 	VERBOSE("base_addr:%lx, hz=%d\n", base_addr, p->hz);
-	if (p->hz < MHz) {
+	if (p->hz < MHZ) {
 		if (p->hz < 786)
 			goto err;
 		ret = ddr_set_pll(p->hz, 0);
 	} else {
-		if (p->hz < (786 * MHz))
+		if (p->hz < (786 * MHZ))
 			goto err;
-		ret = ddr_set_pll(p->hz / MHz, 0)
-			* MHz;
+		ret = ddr_set_pll(p->hz / MHZ, 0)
+			* MHZ;
 	}
 	return ret;
 err:
@@ -2013,20 +2022,15 @@ err:
 void ddr_set_auto_self_refresh(uint32_t page_type)
 {
 	uint64_t base_addr;
-	struct set_at_sr_params *p;
+	struct share_params *p;
 
 	if (page_type != SHARE_PAGE_TYPE_DDR)
 		goto err;
 	if (0 != share_mem_type2page_base(page_type, &base_addr))
 		goto err;
-	p = (struct set_at_sr_params *)base_addr;
+	p = (struct share_params *)base_addr;
 	VERBOSE("base_addr:%lx\n", base_addr);
-	if (p->en)
-		mmio_setbits_32(DDRC_BASE_ADDR + DDR_PCTL2_PWRCTL,
-				PCTL2_SELFREF_EN);
-	else
-		mmio_clrbits_32(DDRC_BASE_ADDR + DDR_PCTL2_PWRCTL,
-				PCTL2_SELFREF_EN);
+	sram_param.sr_idle_en = p->sr_idle_en;
 err:
 	return;
 }
@@ -2043,15 +2047,15 @@ void ddr_dfs_init(uint32_t page_type)
 	memcpy((void *)&dts_parameter,
 	       (void *)(base_addr + DTS_PAR_OFFSET),
 		sizeof(dts_parameter));
-	ddr_sram_param_init(&sram_param, &dts_parameter);
+	ddr_sram_param_init(&dts_parameter, &sram_param);
 	dram_param_init(&sram_param, &dram_param);
-	ddr_related_init(&dts_parameter);
+	ddr_related_init(&dts_parameter, &sram_param);
 }
 
 uint32_t ddr_get_version(void)
 {
-	/* version V1.00 */
-	return 0x100;
+	/* version V1.01 */
+	return 0x101;
 }
 
 /*****************************************************************************

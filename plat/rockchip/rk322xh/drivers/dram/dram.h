@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2016, ARM Limited and Contributors. All rights reserved.
+ * Copyright (C) 2017, Fuzhou Rockchip Electronics Co., Ltd.
+ * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -10,10 +11,6 @@
  * Redistributions in binary form must reproduce the above copyright notice,
  * this list of conditions and the following disclaimer in the documentation
  * and/or other materials provided with the distribution.
- *
- * Neither the name of ARM nor the names of its contributors may be used
- * to endorse or promote products derived from this software without specific
- * prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -33,9 +30,9 @@
 #include <plat_private.h>
 #include <stdint.h>
 
-#define KHz	(1000)
-#define MHz	(1000 * KHz)
-#define GHz	(1000 * MHz)
+#define KHZ	(1000)
+#define MHZ	(1000 * KHZ)
+#define GHZ	(1000 * MHZ)
 
 #define DLL_ON_2_ON	0
 #define DLL_ON_2_OFF	1
@@ -43,7 +40,6 @@
 #define DLL_OFF_2_OFF	3
 
 #define SYNC_WITH_LCDC_FRAME_INTR
-#define PHY_DLL_BYPASS_FREQ		(400)
 #define PHY_READ_DQS_DLL_SWITCH_FREQ	(680)
 
 #define DDR_PHY_BASE_ADDR		DDR_PHY_BASE
@@ -258,7 +254,8 @@
 #define PCTL2_POWERDOWN_EN		(1 << 1)
 #define PCTL2_SELFREF_EN		(1)
 /* PCTL2_PWRTMG */
-#define PCTL2_SELFREF_TO_X32_MASK	(0xFF << 16)
+#define PCTL2_SELFREF_TO_X32_MASK	(0xFF)
+#define PCTL2_SELFREF_TO_X32_SHIFT	(16)
 #define PCTL2_POWERDOWN_TO_X32_MASK	(0x1F)
 /* PCTL2_INIT3 */
 #define PCTL2_MR0_SHIFT			(16)
