@@ -48,6 +48,7 @@
 struct rksoc_cpu_info_s {
 	uint32_t slp_cfg;
 	uint32_t suspend_dbg_en;
+	uint32_t suspend_wkup_cfg;
 };
 
 #if USE_COHERENT_MEM
@@ -573,6 +574,9 @@ static void pmu_sleep_mode_config(uint32_t status)
 {
 	uint32_t pwrmd_core, pwrmd_com;
 	uint32_t temp_val;
+
+	mmio_write_32(PMU_BASE + PMU_WKUP_CFG2,
+		      rk_cpuinfo.suspend_wkup_cfg);
 
 	/* common setting */
 	pwrmd_core = BIT(pmu_mdcr_cpu0_pd) |
@@ -1861,6 +1865,10 @@ int suspend_mode_handler(uint64_t mode_id,
 		rk_cpuinfo.suspend_dbg_en = config1;
 		return 0;
 
+	case WKUP_SOURCE_CONFIG:
+		rk_cpuinfo.suspend_wkup_cfg = config1;
+		return 0;
+
 	default:
 		ERROR("%s: unhandled sip (0x%lx)\n", __func__, mode_id);
 		return -1;
@@ -1882,6 +1890,7 @@ static void set_sys_sleep_mode_default(void)
 
 	rk_cpuinfo.slp_cfg = check_sleep_config(slp_cfg);
 	rk_cpuinfo.suspend_dbg_en = 0;
+	rk_cpuinfo.suspend_wkup_cfg = 0;
 }
 
 void plat_rockchip_pmu_init(void)
