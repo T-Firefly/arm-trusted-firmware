@@ -213,6 +213,7 @@ uint64_t rockchip_plat_sip_handler(uint32_t smc_fid,
 	SMC_RET1(handle, SMC_UNK);
 }
 
+#ifndef PLAT_rk3399
 #pragma weak ddr_dfs_init
 #pragma weak ddr_set_rate
 #pragma weak ddr_round_rate
@@ -306,6 +307,7 @@ static int ddr_smc_handler(uint64_t arg0, uint64_t arg1,
 
 	return SIP_RET_SUCCESS;
 }
+#endif
 
 /*
  * This function is responsible for handling all SiP calls from the NS world
@@ -359,10 +361,12 @@ uint64_t sip_smc_handler(uint32_t smc_fid,
 		ret = regs_access(x1, x2, x3, &res);
 		SMC_RET2(handle, ret, res.a1);
 
+#ifndef PLAT_rk3399
 	case RK_SIP_DDR_CFG32:
 		memset(&res, 0, sizeof(res));
 		ret = ddr_smc_handler(x1, x2, x3, &res);
 		SMC_RET4(handle, ret, res.a1, res.a2, res.a3);
+#endif
 
 	default:
 		return rockchip_plat_sip_handler(smc_fid, x1, x2, x3, x4,
