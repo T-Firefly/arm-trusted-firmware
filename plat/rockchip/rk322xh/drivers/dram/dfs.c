@@ -78,6 +78,10 @@ struct rk3328_ddr_sram_param {
 	uint32_t dramtype;
 	struct drv_odt_lp_config drv_odt_lp_cfg;
 	uint32_t sr_idle_en;
+	uint8_t b_deskew;
+	uint8_t ca_skew[15];
+	uint8_t cs0_skew[44];
+	uint8_t cs1_skew[44];
 	/* tmp value used in scale frequency */
 	uint64_t save_sp;
 	uint32_t wait_flag0;
@@ -1034,24 +1038,22 @@ static __sramfunc void ddr_update_odt(struct rk3328_ddr_sram_param *p_sram_param
 	}
 }
 
-static void ddr_update_skew(struct ddr_dts_config_timing *dts_timing)
+static __sramfunc void ddr_update_skew(struct rk3328_ddr_sram_param *p_sram_param)
 {
 	uint32_t n;
 
-	if (!dts_timing)
+	if (p_sram_param->b_deskew)
 		return;
 
-	if (!(dts_timing->available))
-		return;
+	p_sram_param->b_deskew = 1;
+	for (n = 0; n < ARRAY_SIZE(p_sram_param->ca_skew); n++)
+		mmio_write_32(PHY_REG(0xb0 + n), p_sram_param->ca_skew[n]);
 
-	for (n = 0; n < ARRAY_SIZE(dts_timing->ca_skew); n++)
-		mmio_write_32(PHY_REG(0xb0 + n), dts_timing->ca_skew[n]);
+	for (n = 0; n < ARRAY_SIZE(p_sram_param->cs0_skew); n++)
+		mmio_write_32(PHY_REG(0x70 + n), p_sram_param->cs0_skew[n]);
 
-	for (n = 0; n < ARRAY_SIZE(dts_timing->cs0_skew); n++)
-		mmio_write_32(PHY_REG(0x70 + n), dts_timing->cs0_skew[n]);
-
-	for (n = 0; n < ARRAY_SIZE(dts_timing->cs1_skew); n++)
-		mmio_write_32(PHY_REG(0xc0 + n), dts_timing->cs1_skew[n]);
+	for (n = 0; n < ARRAY_SIZE(p_sram_param->cs1_skew); n++)
+		mmio_write_32(PHY_REG(0xc0 + n), p_sram_param->cs1_skew[n]);
 }
 
 /*
@@ -1063,6 +1065,7 @@ static void ddr_sram_param_init(struct ddr_dts_config_timing *dts_timing,
 {
 	uint32_t os_reg2_val;
 	struct rk3328_sdram_channel *ch = &p_sram_param->ch;
+	uint32_t n;
 
 	/* init sram_param */
 	os_reg2_val = mmio_read_32(GRF_BASE + GRF_OS_REG(2));
@@ -1085,6 +1088,40 @@ static void ddr_sram_param_init(struct ddr_dts_config_timing *dts_timing,
 	p_sram_param->set_rate_delay = 0;
 	p_sram_param->stop_cpu_delay = 0;
 	p_sram_param->sr_idle_en = 0;
+	p_sram_param->b_deskew = 0;
+
+	if (!dts_timing)
+		goto no_dts;
+
+	if (!(dts_timing->available))
+		goto no_dts;
+
+	for (n = 0; n < ARRAY_SIZE(dts_timing->ca_skew); n++)
+		p_sram_param->ca_skew[n] = (uint8_t)dts_timing->ca_skew[n];
+
+	for (n = 0; n < ARRAY_SIZE(dts_timing->cs0_skew); n++)
+		p_sram_param->cs0_skew[n] = (uint8_t)dts_timing->cs0_skew[n];
+
+	for (n = 0; n < ARRAY_SIZE(dts_timing->cs1_skew); n++)
+		p_sram_param->cs1_skew[n] = (uint8_t)dts_timing->cs1_skew[n];
+	return;
+no_dts:
+	for (n = 0; n < ARRAY_SIZE(dts_timing->ca_skew); n++)
+		p_sram_param->ca_skew[n] = 0x77;
+
+	for (n = 0; n < ARRAY_SIZE(dts_timing->cs0_skew); n++) {
+		if ((n % 11) == 10)
+			p_sram_param->cs0_skew[n] = 0x7;
+		else
+			p_sram_param->cs0_skew[n] = 0x77;
+	}
+
+	for (n = 0; n < ARRAY_SIZE(dts_timing->cs1_skew); n++) {
+		if ((n % 11) == 10)
+			p_sram_param->cs1_skew[n] = 0x7;
+		else
+			p_sram_param->cs1_skew[n] = 0x77;
+	}
 }
 
 /* input : dts_timing, p_sram_param */
@@ -1105,8 +1142,6 @@ static void ddr_related_init(struct ddr_dts_config_timing *dts_timing,
 	 * because these setting is static, in other words
 	 * upctl2 not support modify these setting after start
 	 */
-	VERBOSE("ddr_update_skew\n");
-	ddr_update_skew(dts_timing);
 }
 
 __sramfunc void update_pctl_timing(uint32_t dest_mode,
@@ -1792,6 +1827,7 @@ __sramfunc void ddr_set_rate_sram(uint32_t mhz, uint32_t dest_mode,
 	mmio_write_32(GRF_BASE + GRF_SOC_CON(2), GRF_CON_DDRPHY_BUFFEREN_MASK |
 			GRF_CON_DDRPHY_BUFFEREN_DIS);
 	ddr_update_odt(p_sram_param, dest_mode);
+	ddr_update_skew(p_sram_param);
 	mmio_write_32(CRU_BASE + CRU_CLKGATE_CON(18),
 		      DDR_MSCH_UPCTL_EN_MASK |
 		      (0x0 << DDR_MSCH_UPCTL_EN_SHIFT));
